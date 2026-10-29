@@ -6,6 +6,8 @@
   "license": "MIT",
   "exports": {
     "./language-metadata": "./language-metadata.ts",
+    "./settings-resolvers": "./settings-resolvers.ts",
+    "./referral": "./referral.ts",
     "./models": "./models.ts"
   }
 }

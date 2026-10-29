@@ -5,13 +5,14 @@
   "type": "module",
   "license": "MIT",
   "exports": {
-    "./metro": "./metro.cjs",
-    "./language-metadata": "./language-metadata.ts",
-    "./settings-resolvers": "./settings-resolvers.ts",
-    "./referral": "./referral.ts",
     "./analytics": "./analytics.ts",
     "./analytics-client": "./analytics-client.ts",
     "./analytics-native": "./analytics-native.ts",
-    "./models": "./models.ts"
+    "./language-metadata": "./language-metadata.ts",
+    "./metro": "./metro.cjs",
+    "./models": "./models.ts",
+    "./prompts": "./prompts.ts",
+    "./referral": "./referral.ts",
+    "./settings-resolvers": "./settings-resolvers.ts"
   }
 }

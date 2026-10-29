@@ -8,6 +8,8 @@
     "./analytics": "./analytics.ts",
     "./analytics-client": "./analytics-client.ts",
     "./analytics-native": "./analytics-native.ts",
+    "./json/error-codes": "./json/error-codes.json",
+    "./json/voices": "./json/voices.json",
     "./language-metadata": "./language-metadata.ts",
     "./metro": "./metro.cjs",
     "./models": "./models.ts",

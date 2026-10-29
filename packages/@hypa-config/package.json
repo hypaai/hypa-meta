@@ -8,7 +8,9 @@
     "./analytics": "./analytics.ts",
     "./analytics-client": "./analytics-client.ts",
     "./analytics-native": "./analytics-native.ts",
+    "./auto-routing": "./auto-routing.ts",
     "./google-models": "./google-models.ts",
+    "./her": "./her.ts",
     "./json/error-codes": "./json/error-codes.json",
     "./json/voices": "./json/voices.json",
     "./language-metadata": "./language-metadata.ts",
@@ -16,7 +18,9 @@
     "./metro": "./metro.cjs",
     "./model-hosts": "./model-hosts.ts",
     "./models": "./models.ts",
+    "./mt-pair-support": "./mt-pair-support.ts",
     "./prompts": "./prompts.ts",
+    "./ranking": "./ranking.ts",
     "./referral": "./referral.ts",
     "./settings-resolvers": "./settings-resolvers.ts"
   }

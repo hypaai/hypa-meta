@@ -1,0 +1,8 @@
+{
+  "name": "@hypa/translate-core",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "@hypa/config": "workspace:*"
+  }
+}

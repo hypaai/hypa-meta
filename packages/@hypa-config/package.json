@@ -8,6 +8,9 @@
     "./language-metadata": "./language-metadata.ts",
     "./settings-resolvers": "./settings-resolvers.ts",
     "./referral": "./referral.ts",
+    "./analytics": "./analytics.ts",
+    "./analytics-client": "./analytics-client.ts",
+    "./analytics-native": "./analytics-native.ts",
     "./models": "./models.ts"
   }
 }

@@ -81,7 +81,7 @@ export function isContributorModel(provider: string, model: string): boolean {
   return provider === "meta" && model.endsWith("-contributor");
 }
 
-const PRODUCT_MODELS_BY_CAPABILITY = groupModelsByCapability(
+export const PRODUCT_MODELS_BY_CAPABILITY = groupModelsByCapability(
   Object.fromEntries(Object.entries(MODELS).map(([provider, models]) => [
     provider,
     models.filter((model) => !isContributorModel(provider, model.name)),

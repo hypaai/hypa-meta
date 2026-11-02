@@ -162,6 +162,11 @@ export class DeveloperSharedService {
     return wallet;
   }
 
+  async hasBalance(userId: string, cost: number) {
+    const wallet = await this.getUserWallet(userId);
+    return Number(wallet.balance) >= cost;
+  }
+
   async checkBalance(userId: string, cost: number) {
     const wallet = await this.getUserWallet(userId);
     const currentBalance = Number(wallet.balance);

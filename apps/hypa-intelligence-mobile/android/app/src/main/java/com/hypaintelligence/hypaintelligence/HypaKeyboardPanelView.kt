@@ -3067,7 +3067,7 @@ class HypaKeyboardPanelView(
     stopTts()
     askGeneration += 1
     val generation = askGeneration
-    val turn = AskTurn(request = instruction, activity = if (audio == null) "Working…" else "Transcribing…")
+    val turn = AskTurn(request = instruction, activity = "Working…")
     askTurn = turn
     askReplySuggestions = emptyList()
     askShowsDetails = false
@@ -3130,7 +3130,7 @@ class HypaKeyboardPanelView(
     val payload = turn.payload ?: return
     if (!turn.retryable) return
     askGeneration += 1
-    val fresh = AskTurn(request = turn.request, activity = if (payload.has("audio")) "Transcribing…" else "Working…")
+    val fresh = AskTurn(request = turn.request, activity = "Working…")
     fresh.payload = payload.put("requestId", fresh.requestId)
     fresh.sentSelection = turn.sentSelection
     fresh.sentDocument = turn.sentDocument

@@ -2509,7 +2509,7 @@ class KeyboardViewController: UIInputViewController {
     stopTts()
     askGeneration += 1
     let generation = askGeneration
-    askTurn = AskTurn(activity: audio == nil ? "Working…" : "Transcribing…")
+    askTurn = AskTurn(activity: "Working…")
     askReplySuggestions = []
     askShowsDetails = false
     refreshAsk()
@@ -2574,7 +2574,7 @@ class KeyboardViewController: UIInputViewController {
     askGeneration += 1
     var fresh = AskTurn(
       payload: turn.payload, sentSelection: turn.sentSelection, sentDocument: turn.sentDocument,
-      sentContext: turn.sentContext, request: turn.request, activity: turn.payload["audio"] == nil ? "Working…" : "Transcribing…")
+      sentContext: turn.sentContext, request: turn.request, activity: "Working…")
     fresh.payload["requestId"] = fresh.requestId
     askTurn = fresh
     refreshAsk()

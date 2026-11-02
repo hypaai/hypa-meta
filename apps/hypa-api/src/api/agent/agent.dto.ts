@@ -11,6 +11,7 @@ import {
   ValidateNested,
   IsUUID,
 } from 'class-validator';
+import { CHAT_FILE_LIMIT, CHAT_FILE_MIMES } from '@hypa/config/chat-attachments';
 
 export class AgentContextDto {
   @IsOptional()
@@ -41,6 +42,20 @@ export class AgentAttachmentDto {
   @IsOptional()
   @IsString()
   mime?: string;
+}
+
+/** An image or audio file the model reads or transcribes. */
+export class AgentFileDto {
+  @IsString()
+  @MaxLength(7_000_000)
+  data: string;
+
+  @IsIn([...CHAT_FILE_MIMES])
+  mime: string;
+
+  @IsString()
+  @MaxLength(255)
+  name: string;
 }
 
 export class AgentAsrDto {
@@ -109,6 +124,13 @@ export class AgentRequestDto {
   @ValidateNested({ each: true })
   @Type(() => AgentAttachmentDto)
   attachments?: AgentAttachmentDto[];
+
+  @IsOptional()
+  @IsArray()
+  @ArrayMaxSize(CHAT_FILE_LIMIT)
+  @ValidateNested({ each: true })
+  @Type(() => AgentFileDto)
+  files?: AgentFileDto[];
 
   @IsOptional()
   @IsArray()

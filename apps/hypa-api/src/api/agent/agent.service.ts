@@ -43,6 +43,8 @@ import { verifyMediaUrl } from './media-url';
 import { agentFailure } from './agent.errors';
 import { SpendCap } from 'src/libs/shared/spend-cap';
 
+const AUDIO_TOOLS = ['speech_to_text', 'process_voice_message'];
+
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const IMAGE_TOKEN_HOLD = 2048;
 const FINISHED_JOB_TTL_MS = 10 * 60 * 1000;
@@ -446,7 +448,30 @@ export class AgentService {
     const selectedTools = input.toolNames === undefined
       ? HYPA_TOOLS
       : HYPA_TOOLS.filter((tool) => input.toolNames!.includes(tool.name));
+    // Recordings the model reaches by number (attachedAudio) instead of being transcribed up front.
+    const attachedAudios: { audio: string; audioType: 'base64' | 'url'; stored?: { transcript?: string }; voice?: boolean }[] = [];
     const runTool = async (name: string, args: Record<string, unknown>) => {
+      const source = AUDIO_TOOLS.includes(name) && args.attachedAudio !== undefined
+        ? attachedAudios[Number(args.attachedAudio) - 1]
+        : undefined;
+      if (AUDIO_TOOLS.includes(name) && args.attachedAudio !== undefined && !source) {
+        return { ok: false, error: attachedAudios.length ? `Only ${attachedAudios.length} audio file${attachedAudios.length === 1 ? ' is' : 's are'} attached to this message.` : 'No audio is attached to this message.' };
+      }
+      if (!source) return runToolDirect(name, args);
+      const { attachedAudio: _number, ...rest } = args;
+      const result = await runToolDirect(name, { ...rest, audio: source.audio, audioType: source.audioType });
+      const transcript = typeof result.transcript === 'string' ? result.transcript : '';
+      if (transcript) {
+        if (source.stored) source.stored.transcript = transcript;
+        // A voice turn's words become the user message, as when it was transcribed up front.
+        if (source.voice && !userText.trim()) {
+          userText = transcript;
+          this.push(job, { type: 'transcript', text: transcript });
+        }
+      }
+      return result;
+    };
+    const runToolDirect = async (name: string, args: Record<string, unknown>) => {
       if (!selectedTools.some((tool) => tool.name === name)) {
         throw new Error(`Tool ${name} is not enabled for this message`);
       }
@@ -539,7 +564,10 @@ export class AgentService {
       uploaded.push({ file, stored });
     }
     for (const { file, stored } of uploaded) {
-      if (file.mime.startsWith('audio/')) {
+      if (file.mime.startsWith('audio/') && !input.lab) {
+        attachedAudios.push({ audio: `data:${file.mime};base64,${file.data}`, audioType: 'base64', stored });
+        imageNotes.push(`Audio ${attachedAudios.length}: ${file.name}`);
+      } else if (file.mime.startsWith('audio/')) {
         const result = await prepareFile('speech_to_text', { audio: `data:${file.mime};base64,${file.data}`, audioType: 'base64' }, file.name);
         const transcript = String((result as { transcript?: string })?.transcript ?? '');
         if (!transcript.trim()) throw new BadRequestException('No speech was found in the audio.');
@@ -557,8 +585,11 @@ export class AgentService {
         imageNotes.push(`Text in ${file.name}:\n${text}`);
       }
     }
-    if (input.audio) {
-      if (!payerId) throw new BadRequestException('Voice input is not available right now');
+    if (input.audio && !payerId) throw new BadRequestException('Voice input is not available right now');
+    if (input.audio && !input.lab) {
+      attachedAudios.push({ audio: input.audio, audioType: input.audioType ?? 'base64', voice: true });
+      imageNotes.push(`Audio ${attachedAudios.length}: the user's voice message. It is their message: transcribe it with speech_to_text (attachedAudio ${attachedAudios.length}) and act on what it says.`);
+    } else if (input.audio) {
       const heard = await runTool('speech_to_text', {
         audio: input.audio,
         audioType: input.audioType ?? 'base64',
@@ -568,6 +599,9 @@ export class AgentService {
           ? String((heard as { transcript?: string }).transcript ?? '')
           : input.input;
       this.push(job, { type: 'transcript', text: userText });
+    }
+    if (attachedAudios.length) {
+      imageNotes.push(`The audio in this message is numbered 1 to ${attachedAudios.length} in the order shown. You cannot hear it yourself; to transcribe one, call speech_to_text with attachedAudio set to its number.`);
     }
     const vision = modelAcceptsImages(input.provider, input.model);
     for (const attachment of input.attachments ?? []) {

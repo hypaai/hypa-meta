@@ -21,6 +21,8 @@ type UseSpeechRecorderOptions = {
   provider?: string;
   onTranscript: (text: string) => void;
   onNoTranscript?: () => void;
+  /** When set, the recording is handed over as a file instead of being transcribed here. */
+  onRecording?: (uri: string) => void;
   runWithConsent: (action: () => void) => void;
   stopPlayers: () => void;
   toast: ReturnType<typeof useToast>;
@@ -31,6 +33,7 @@ export const useSpeechRecorder = ({
   provider,
   onTranscript,
   onNoTranscript,
+  onRecording,
   runWithConsent,
   stopPlayers,
   toast,
@@ -168,6 +171,12 @@ export const useSpeechRecorder = ({
         }
         setLastRecordingUri(uri);
         setRecordingState("idle");
+        if (onRecording) {
+          runWithConsent(() => {
+            if (mounted.current && epoch === generation.current) onRecording(uri);
+          });
+          return;
+        }
         runWithConsent(() => {
           if (!mounted.current || epoch !== generation.current) return;
           setRecordingState("transcribing");
@@ -185,7 +194,7 @@ export const useSpeechRecorder = ({
         isStoppingRecordingRef.current = false;
       }
     },
-    [recorder, recordingState, runWithConsent, toast, transcribeRecordingUri],
+    [recorder, recordingState, onRecording, runWithConsent, toast, transcribeRecordingUri],
   );
 
   const cancelRecording = useCallback(async () => {

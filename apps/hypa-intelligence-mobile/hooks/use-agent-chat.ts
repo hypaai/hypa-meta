@@ -106,8 +106,9 @@ export function useAgentChat(initialChatId?: string, resetKey?: string) {
     }).catch(() => {  });
   }, [userId, initialChatId]);
 
-  const send = useCallback(async (text: string, images: ChatImage[] = [], preferAudio = false) => {
-    if (submitting.current || pending || (!text.trim() && !images.length)) return null;
+  /** `audio` is a base64 voice note: the agent transcribes it itself and the words come back as a transcript event. */
+  const send = useCallback(async (text: string, images: ChatImage[] = [], preferAudio = false, audio?: string) => {
+    if (submitting.current || pending || (!text.trim() && !images.length && !audio)) return null;
     if (images.length > 4) throw new Error('Attach up to four photos.');
     submitting.current = true; setBusy(true); setError('');
     const epoch = generation.current;
@@ -123,6 +124,10 @@ export function useAgentChat(initialChatId?: string, resetKey?: string) {
         .filter((row) => row.status === 'success' && row.content.trim())
         .slice(-20).map((row) => ({ role: row.role, content: row.content.slice(0, 8000) })),
       attachments: images.length ? images.map((image) => ({ data: image.data!, mime: image.mime })) : undefined,
+      ...(audio ? {
+        audio, audioType: 'base64' as const,
+        ...(settings?.sttProvider && settings?.sttModel ? { asr: { provider: settings.sttProvider, model: settings.sttModel } } : {}),
+      } : {}),
     };
     let reply: ChatMessage = { id, role: 'assistant', content: '', status: 'pending', requestId };
     setMessages((rows) => [...rows, { id: `user-${requestId}`, role: 'user', content: text.trim(), status: 'success', images }, reply]);
@@ -134,6 +139,10 @@ export function useAgentChat(initialChatId?: string, resetKey?: string) {
         if (epoch !== generation.current) return;
         const knownChatId = (event as { chatId?: string }).chatId;
         if (knownChatId && token) chatId.current = knownChatId;
+        if (event.type === 'transcript') {
+          setMessages((rows) => rows.map((row) => row.id === `user-${requestId}` ? { ...row, content: event.text } : row));
+          return;
+        }
         reply = { ...reply, ...applyAgentEvent(reply, event) };
         setMessages((rows) => rows.map((row) => row.id === id ? reply : row));
       };
@@ -157,7 +166,7 @@ export function useAgentChat(initialChatId?: string, resetKey?: string) {
     } finally {
       if (epoch === generation.current) { submitting.current = false; setBusy(false); }
     }
-  }, [connection, token, pending, settings?.assistantProvider, settings?.assistantModel, userId, finishPending, invalidateHistory]);
+  }, [connection, token, pending, settings?.assistantProvider, settings?.assistantModel, settings?.sttProvider, settings?.sttModel, userId, finishPending, invalidateHistory]);
 
   const regenerate = useCallback(async (messageId: string) => {
     const index = messages.findIndex((row) => row.id === messageId);

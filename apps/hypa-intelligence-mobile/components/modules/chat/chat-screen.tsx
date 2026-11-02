@@ -88,6 +88,7 @@ import { languageCodeToName } from "@/lib/model-languages";
 import { synthesizeSpeech } from "@/lib/product-api";
 import { FONTS } from "@/constants/fonts";
 import { Text } from "@/components/ui/text";
+import { File } from "expo-file-system";
 
 const STARTERS = [
   "Make a flyer: Ada's Tailoring, open Saturdays, in Igbo and English.",
@@ -216,10 +217,15 @@ export function ChatScreen({
   );
 
   const submit = useCallback(
-    async (text: string, attachments: ChatImage[] = [], voice = false) => {
+    async (
+      text: string,
+      attachments: ChatImage[] = [],
+      voice = false,
+      recording?: string,
+    ) => {
       audio.stop();
       const owner = session.current;
-      const reply = await chat.send(text, attachments, voice);
+      const reply = await chat.send(text, attachments, voice, recording);
       if (owner !== session.current || !mounted.current) return;
       await afterReply(reply);
     },
@@ -230,7 +236,9 @@ export function ChatScreen({
   const recorder = useSpeechRecorder({
     asrModel: settings?.sttModel ?? "",
     provider: settings?.sttProvider,
-    onTranscript: (text) => {
+    // Unused while onRecording is set: the agent transcribes the voice note itself.
+    onTranscript: () => {},
+    onRecording: (uri) => {
       if (
         recordingOwner.current !== session.current ||
         !mounted.current ||
@@ -238,7 +246,11 @@ export function ChatScreen({
       )
         return;
       recordingOwner.current = null;
-      void submitRef.current(text, [], voiceRef.current).catch(report);
+      const voice = voiceRef.current;
+      void new File(uri)
+        .base64()
+        .then((data) => submitRef.current("", [], voice, data))
+        .catch(report);
     },
     onNoTranscript: () => {
       if (voiceRef.current) stopVoice();

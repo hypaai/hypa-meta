@@ -114,6 +114,16 @@ describe("Hypa tools", () => {
     assert.deepEqual(steps.map((entry) => entry.step), ["transcribe", "transcribe", "translate"]);
   });
 
+  it("lets the audio tools take an attached recording by number, and refuses no audio at all", async () => {
+    for (const name of ["speech_to_text", "process_voice_message"]) {
+      const shape = (tool(name).inputSchema as unknown as { shape: Record<string, unknown> }).shape;
+      assert.ok("attachedAudio" in shape, `${name} accepts attachedAudio`);
+      const { executor, steps } = recordingExecutor();
+      await assert.rejects(runHypaTool(tool(name), executor, {}), /No audio was given/);
+      assert.equal(steps.length, 0);
+    }
+  });
+
   it("rejects bad arguments before any step runs", async () => {
     const { executor, steps } = recordingExecutor();
     await assert.rejects(runHypaTool(tool("translate_message"), executor, { text: "" }));

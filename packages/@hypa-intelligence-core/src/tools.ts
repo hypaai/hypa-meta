@@ -85,6 +85,18 @@ const audio = z
   .max(20_000_000)
   .describe("Base64-encoded audio, or an https URL when audioType is 'url'.");
 
+/** In a chat the model names an attached recording by number instead of passing the bytes. */
+const attachedAudio = z.coerce
+  .number()
+  .int()
+  .min(1)
+  .max(8)
+  .optional()
+  .describe("In a chat only: the number of the voice note or audio file the user attached, in the order given. Do not pass `audio` then.");
+
+const audioRequired = () =>
+  new Error("No audio was given. Pass `audio`, or set attachedAudio to the number of an audio file attached in a chat.");
+
 const image = z
   .string()
   .min(1)
@@ -268,29 +280,37 @@ export const HYPA_TOOLS: HypaTool[] = [
   {
     name: "speech_to_text",
     title: "Transcribe speech",
-    description: "Transcribe a voice recording into text.",
+    description:
+      "Transcribe a voice recording into text. " +
+      "To hear audio the user attached to the chat, set attachedAudio to its number (1 for the first) instead of passing `audio`; for several files, call this once per file.",
     inputSchema: z.object({
-      audio,
+      audio: audio.optional(),
       audioType: mediaType("audio"),
+      attachedAudio,
       sourceLang: language("The language spoken, when known. Helps pick the best model.").optional(),
       model: modelField(),
     }),
     outputSchema: z.object({ transcript: z.string(), ...ranOn }),
-    run: (executor, args) =>
-      executor.transcribe({
+    run: (executor, args) => {
+      if (!args.audio) throw audioRequired();
+      return executor.transcribe({
         audio: args.audio,
         audioType: args.audioType,
         sourceLang: lang(args.sourceLang),
         model: args.model,
-      }),
+      });
+    },
   },
   {
     name: "process_voice_message",
     title: "Process a voice message",
-    description: "Transcribe a voice message, and translate the transcript when targetLang is given.",
+    description:
+      "Transcribe a voice message, and translate the transcript when targetLang is given. " +
+      "To use audio the user attached to the chat, set attachedAudio to its number (1 for the first) instead of passing `audio`.",
     inputSchema: z.object({
-      audio,
+      audio: audio.optional(),
       audioType: mediaType("audio"),
+      attachedAudio,
       sourceLang: language("The language spoken. Omit to auto-detect.").optional(),
       targetLang: language("Optionally translate the transcript into this language.").optional(),
       model: modelField("transcription"),
@@ -298,6 +318,7 @@ export const HYPA_TOOLS: HypaTool[] = [
     }),
     outputSchema: z.object({ transcript: z.string(), translatedText: z.string().optional(), ...ranOn }),
     run: async (executor, args) => {
+      if (!args.audio) throw audioRequired();
       const sourceLang = lang(args.sourceLang);
       const heard = await executor.transcribe({
         audio: args.audio,

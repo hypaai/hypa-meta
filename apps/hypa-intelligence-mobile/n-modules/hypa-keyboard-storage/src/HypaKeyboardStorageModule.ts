@@ -9,6 +9,8 @@ declare class HypaKeyboardStorageNative extends NativeModule<HypaKeyboardStorage
   setSettingsJson(json: string): Promise<void>;
   getSharedStoreJson(): string;
   setSharedStoreJson(json: string): Promise<void>;
+  startKeyboardMic(): Promise<void>;
+  stopKeyboardMic(): void;
   drainDebugEvents?: () => Array<{
     message: string;
     groupId: string;
@@ -50,6 +52,15 @@ export function getSharedStoreJson(): string {
 
 export async function setSharedStoreJson(json: string): Promise<void> {
   await native.setSharedStoreJson(json);
+}
+
+/** iOS only: records for the keyboard, which can't use the mic itself. */
+export async function startKeyboardMic(): Promise<void> {
+  await native.startKeyboardMic();
+}
+
+export function stopKeyboardMic(): void {
+  native.stopKeyboardMic();
 }
 
 export function addSharedStoreChangedListener(

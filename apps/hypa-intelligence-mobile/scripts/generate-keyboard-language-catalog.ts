@@ -400,7 +400,10 @@ ${renderSwiftServiceProviderModels()}
     selectedProvider: String,
     selectedModel: String
   ) -> ServiceModelSelection {
-    resolveServiceModel(service: "ASR", selectedProvider: selectedProvider, selectedModel: selectedModel)
+    let selection = resolveServiceModel(
+      service: "ASR", selectedProvider: selectedProvider, selectedModel: selectedModel)
+    // "auto" is not a model: the API picks one when the provider is "auto".
+    return selection.model == "auto" ? ServiceModelSelection(provider: "auto", model: "auto") : selection
   }
 
   private static let alternateCaseForms: [String: [String]] = [
@@ -654,8 +657,11 @@ ${renderKotlinServiceProviderModels()}
   fun resolveTts(selectedProvider: String, selectedModel: String): ServiceModelSelection =
     resolveServiceModel("TTS", selectedProvider, selectedModel)
 
+  // "auto" is not a model: the API picks one when the provider is "auto".
   fun resolveStt(selectedProvider: String, selectedModel: String): ServiceModelSelection =
-    resolveServiceModel("ASR", selectedProvider, selectedModel)
+    resolveServiceModel("ASR", selectedProvider, selectedModel).let {
+      if (it.model == "auto") ServiceModelSelection("auto", "auto") else it
+    }
 
   private val alternateCaseForms: Map<String, List<String>> = mapOf(
 ${Object.entries(alternateCaseForms).map(([key, forms]) => `    ${kotlinString(key)} to listOf(${forms.map(kotlinString).join(', ')}),`).join('\n')}

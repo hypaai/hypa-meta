@@ -7149,7 +7149,10 @@ enum KeyboardLanguageCatalog {
     selectedProvider: String,
     selectedModel: String
   ) -> ServiceModelSelection {
-    resolveServiceModel(service: "ASR", selectedProvider: selectedProvider, selectedModel: selectedModel)
+    let selection = resolveServiceModel(
+      service: "ASR", selectedProvider: selectedProvider, selectedModel: selectedModel)
+    // "auto" is not a model: the API picks one when the provider is "auto".
+    return selection.model == "auto" ? ServiceModelSelection(provider: "auto", model: "auto") : selection
   }
 
   private static let alternateCaseForms: [String: [String]] = [

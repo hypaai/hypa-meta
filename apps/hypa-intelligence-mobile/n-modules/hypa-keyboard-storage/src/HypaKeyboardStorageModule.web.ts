@@ -49,3 +49,7 @@ const webStub = {
 };
 
 export default webStub;
+
+export async function startKeyboardMic(): Promise<void> {}
+
+export function stopKeyboardMic(): void {}

@@ -750,8 +750,11 @@ object KeyboardLanguageCatalog {
   fun resolveTts(selectedProvider: String, selectedModel: String): ServiceModelSelection =
     resolveServiceModel("TTS", selectedProvider, selectedModel)
 
+  // "auto" is not a model: the API picks one when the provider is "auto".
   fun resolveStt(selectedProvider: String, selectedModel: String): ServiceModelSelection =
-    resolveServiceModel("ASR", selectedProvider, selectedModel)
+    resolveServiceModel("ASR", selectedProvider, selectedModel).let {
+      if (it.model == "auto") ServiceModelSelection("auto", "auto") else it
+    }
 
   private val alternateCaseForms: Map<String, List<String>> = mapOf(
     "b" to listOf("B", "B"),

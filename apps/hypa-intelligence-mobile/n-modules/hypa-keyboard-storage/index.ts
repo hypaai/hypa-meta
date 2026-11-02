@@ -8,7 +8,9 @@ export {
   getSharedStoreJson,
   setSettingsJson,
   setSharedStoreJson,
+  startKeyboardMic,
   startKeyboardStorageDebugLogging,
+  stopKeyboardMic,
 } from './src/HypaKeyboardStorageModule';
 export type {
   HypaKeyboardStorageModuleEvents,

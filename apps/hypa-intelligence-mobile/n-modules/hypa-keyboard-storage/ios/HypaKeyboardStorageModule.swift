@@ -1,3 +1,4 @@
+import AVFoundation
 import ExpoModulesCore
 
 private let appGroupId = "group.com.hypaintelligence.hypaintelligence"
@@ -167,6 +168,166 @@ public class HypaKeyboardStorageModule: Module {
         self.sendEvent("debugLog", event)
       }
       return events
+    }
+
+    AsyncFunction("startKeyboardMic") { (promise: Promise) in
+      AVAudioSession.sharedInstance().requestRecordPermission { allowed in
+        DispatchQueue.main.async {
+          guard allowed else {
+            return promise.reject("MicDenied", "Allow microphone access for Hypa Intelligence in Settings.")
+          }
+          do {
+            try KeyboardMic.shared.start()
+            promise.resolve(nil)
+          } catch {
+            promise.reject("MicFailed", error.localizedDescription)
+          }
+        }
+      }
+    }
+
+    Function("stopKeyboardMic") {
+      KeyboardMic.shared.shutdown()
+    }
+  }
+}
+
+// Must match KeyboardViewController's copies.
+private let keyboardMicStart = "com.hypaintelligence.keyboard-mic.start"
+private let keyboardMicStop = "com.hypaintelligence.keyboard-mic.stop"
+private let keyboardMicHeartbeatKey = "keyboard_mic_heartbeat"
+private let keyboardMicFileName = "keyboard-mic.pcm"
+private let keyboardMicOwnerKey = "keyboard_mic_owner"
+
+/// iOS keyboards can't use the microphone, so the app records for them. Opened once
+/// from the keyboard, the app keeps the mic running in the background (audio
+/// background mode), so later taps start without leaving the keyboard. The keyboard
+/// sends start/stop as Darwin notifications and gets 16 kHz mono PCM back as a file
+/// in the App Group container. A heartbeat in shared defaults tells it the mic is live.
+private final class KeyboardMic {
+  static let shared = KeyboardMic()
+  // ponytail: one idle window for both warm mic and abandoned captures.
+  private static let idleTimeout: TimeInterval = 5 * 60
+
+  private let engine = AVAudioEngine()
+  private let queue = DispatchQueue(label: "hypa.keyboard-mic")
+  private var pcm = Data()
+  private var capturing = false
+  private var lastActivity = Date()
+  private var heartbeat: Timer?
+
+  private init() {
+    let center = CFNotificationCenterGetDarwinNotifyCenter()
+    for name in [keyboardMicStart, keyboardMicStop] {
+      CFNotificationCenterAddObserver(
+        center, Unmanaged.passUnretained(self).toOpaque(),
+        { _, _, name, _, _ in
+          let isStart = name?.rawValue as String? == keyboardMicStart
+          DispatchQueue.main.async {
+            isStart ? KeyboardMic.shared.beginCapture() : KeyboardMic.shared.endCapture()
+          }
+        }, name as CFString, nil, .deliverImmediately)
+    }
+  }
+
+  func start() throws {
+    if !engine.isRunning {
+      let session = AVAudioSession.sharedInstance()
+      try session.setCategory(.playAndRecord, mode: .default, options: [.mixWithOthers])
+      try session.setActive(true)
+      let input = engine.inputNode
+      let inFmt = input.outputFormat(forBus: 0)
+      guard inFmt.channelCount > 0,
+        let outFmt = AVAudioFormat(
+          commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),
+        let converter = AVAudioConverter(from: inFmt, to: outFmt)
+      else {
+        throw NSError(
+          domain: "HypaKeyboardMic", code: 1,
+          userInfo: [NSLocalizedDescriptionKey: "No microphone input"])
+      }
+      input.removeTap(onBus: 0)
+      input.installTap(onBus: 0, bufferSize: 2048, format: inFmt) { [weak self] buf, _ in
+        self?.append(buf, converter: converter, format: outFmt)
+      }
+      engine.prepare()
+      try engine.start()
+      heartbeat?.invalidate()
+      heartbeat = Timer.scheduledTimer(withTimeInterval: 2, repeats: true) { [weak self] _ in
+        self?.tick()
+      }
+    }
+    beginCapture()
+    tick()
+  }
+
+  private func beginCapture() {
+    guard engine.isRunning else { return }
+    lastActivity = Date()
+    queue.sync {
+      pcm = Data()
+      capturing = true
+    }
+  }
+
+  private func endCapture() {
+    lastActivity = Date()
+    let data: Data? = queue.sync {
+      guard capturing else { return nil }
+      capturing = false
+      defer { pcm = Data() }
+      return pcm
+    }
+    guard let data,
+      let url = FileManager.default
+        .containerURL(forSecurityApplicationGroupIdentifier: appGroupId)?
+        .appendingPathComponent(keyboardMicFileName)
+    else { return }
+    try? data.write(to: url, options: .atomic)
+  }
+
+  private func tick() {
+    guard Date().timeIntervalSince(lastActivity) < Self.idleTimeout else { return shutdown() }
+    UserDefaults(suiteName: appGroupId)?
+      .set(Date().timeIntervalSince1970, forKey: keyboardMicHeartbeatKey)
+  }
+
+  func shutdown() {
+    heartbeat?.invalidate()
+    heartbeat = nil
+    engine.inputNode.removeTap(onBus: 0)
+    engine.stop()
+    queue.sync {
+      capturing = false
+      pcm = Data()
+    }
+    let defaults = UserDefaults(suiteName: appGroupId)
+    defaults?.removeObject(forKey: keyboardMicHeartbeatKey)
+    // So the keyboard doesn't come back showing "Listening…".
+    defaults?.removeObject(forKey: keyboardMicOwnerKey)
+    try? AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
+  }
+
+  private func append(_ buf: AVAudioPCMBuffer, converter: AVAudioConverter, format: AVAudioFormat) {
+    let capacity = AVAudioFrameCount(Double(buf.frameLength) * format.sampleRate / buf.format.sampleRate) + 1
+    guard let out = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: capacity) else { return }
+    var fed = false
+    var error: NSError?
+    let status = converter.convert(to: out, error: &error) { _, outStatus in
+      if fed {
+        outStatus.pointee = .noDataNow
+        return nil
+      }
+      fed = true
+      outStatus.pointee = .haveData
+      return buf
+    }
+    guard status != .error, error == nil, out.frameLength > 0, let channel = out.int16ChannelData
+    else { return }
+    let data = Data(bytes: channel[0], count: Int(out.frameLength) * MemoryLayout<Int16>.size)
+    queue.async { [weak self] in
+      guard let self, self.capturing else { return }
+      self.pcm.append(data)
     }
   }
 }

@@ -1,0 +1,59 @@
+{
+  "events": {
+    "completed": "feature_completed",
+    "failed": "feature_failed",
+    "appOpened": "app_opened",
+    "resultUsed": "result_used"
+  },
+  "products": ["translate", "dictionary", "chat", "intelligence", "labs", "developer_api"],
+  "surfaces": ["web", "mobile", "extension", "keyboard", "plugin", "api", "mcp"],
+  "features": [
+    "translate_text",
+    "speech_translate",
+    "transcribe",
+    "synthesize",
+    "ocr",
+    "image",
+    "chat",
+    "dictionary_lookup",
+    "compare"
+  ],
+  "capabilities": ["mt", "tts", "asr", "ocr", "image", "chat", "lookup"],
+  "unitTypes": ["tokens", "characters", "audio_seconds", "images", "lookups"],
+  "errorStages": ["validation", "provider", "internal", "timeout"],
+  "resultActions": ["copy", "share", "play", "insert", "bookmark", "download"],
+  "defaults": {
+    "product": "developer_api",
+    "surface": "api",
+    "backfillSurface": "unknown",
+    "unknown": "other"
+  },
+  "headers": {
+    "product": "x-hypa-product",
+    "surface": "x-hypa-surface",
+    "feature": "x-hypa-feature",
+    "workflowId": "x-hypa-workflow-id",
+    "anonId": "x-hypa-anon-id",
+    "appVersion": "x-hypa-app-version"
+  },
+  "apps": {
+    "hypa-chat": { "product": "chat", "surface": "web" },
+    "hypa-dictionary": { "product": "dictionary", "surface": "web" },
+    "hypa-dictionary-mobile": { "product": "dictionary", "surface": "mobile" },
+    "hypa-lab": { "product": "labs", "surface": "web" },
+    "hypa-translate": { "product": "translate", "surface": "web" },
+    "hypa-translate-extension": { "product": "translate", "surface": "extension" },
+    "hypa-translate-mobile": { "product": "translate", "surface": "mobile" },
+    "hypa-intelligence": { "product": "intelligence", "surface": "web" },
+    "hypa-intelligence-mobile": { "product": "intelligence", "surface": "mobile" },
+    "hypa-intelligence-keyboard": { "product": "intelligence", "surface": "keyboard" }
+  },
+  "capabilityByRequestType": {
+    "machine_translation": "mt",
+    "text_to_speech": "tts",
+    "speech_to_text": "asr",
+    "ocr": "ocr",
+    "image_generation": "image",
+    "chat": "chat"
+  }
+}

@@ -1,0 +1,25 @@
+# Hypa Intelligence
+
+> One app for African language dictionary lookups and translation. Definitions, usage, and audio in 23+ languages, alongside text, document, voice, and image translation.
+
+The combined Hypa dictionary and translation app for African languages.
+
+## Pages
+
+- [Home](https://intelligence.hypaintelligence.com/)
+- [Dictionary](https://intelligence.hypaintelligence.com/dictionary)
+- [All languages](https://intelligence.hypaintelligence.com/dictionary/languages)
+- [Translate](https://intelligence.hypaintelligence.com/translate)
+
+## Key resources
+
+- [Dictionary](https://intelligence.hypaintelligence.com/dictionary): Word lookups with audio.
+- [Translate](https://intelligence.hypaintelligence.com/translate): Text, document, voice, and image translation.
+
+## Elsewhere
+
+- https://hypaintelligence.com
+- https://dictionary.hypaintelligence.com
+- https://translate.hypaintelligence.com
+- https://labs.hypaintelligence.com
+- https://hypachat.com

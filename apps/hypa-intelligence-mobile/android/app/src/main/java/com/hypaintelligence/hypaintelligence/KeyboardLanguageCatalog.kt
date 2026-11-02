@@ -6,13 +6,13 @@ object KeyboardLanguageCatalog {
   val defaultProviderName = "hypaai"
   val defaultTranslationModelName = "auto"
   val defaultDictionaryModelName = "Hypa-Llama3.1-8b-SFT"
-  val defaultTtsModelName = "hypa-orpheus-3b-tts-vc-flt"
-  val defaultSttModelName = "wspr-small-2025-11-11-12-12--mpk"
+  val defaultTtsModelName = "auto"
+  val defaultSttModelName = "auto"
   val defaultSourceLanguage = TranslationLanguage("en", "English")
   val defaultTargetLanguage = TranslationLanguage("yo", "Yoruba")
   val defaultDictionaryLanguage = TranslationLanguage("en", "English")
   val autoDetect = TranslationLanguage("auto", "Auto-Detect")
-  val defaultVoice = "Eniola"
+  val defaultVoice = ""
 
   val allLanguages: List<TranslationLanguage> = listOf(
     TranslationLanguage("af", "Afrikaans"),
@@ -263,6 +263,7 @@ object KeyboardLanguageCatalog {
     "gpt-4o-transcribe" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo"),
     "gpt-transcribe" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo"),
     "gpt-4o-transcribe-diarize" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo"),
+    "auto" to listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "es", "sw", "tw", "urh", "hi-in", "id-id", "it-it", "ja-jp", "ko-kr", "af", "am", "bm", "bem", "ber", "ny", "ee", "ff", "kr", "ki", "rw", "kri", "ln", "lg", "mg", "nr", "om", "nso", "st", "sn", "so", "ss", "ti", "ts", "tn", "umb", "ve", "wo", "xh", "zu", "de", "as", "az", "be", "bg", "bn", "bs", "ca", "ceb", "co", "cs", "cy", "da", "dv", "el", "eo", "et", "eu", "fa", "fi", "fil", "fy", "ga", "gd", "gl", "gu", "haw", "he", "hmn", "hr", "ht", "hu", "hy", "is", "jv", "ka", "kk", "km", "kn", "ku", "ky", "la", "lb", "lo", "lt", "lv", "mi", "mk", "ml", "mn", "mni-mtei", "mr", "ms", "mt", "my", "ne", "nl", "no", "or", "pa", "pl", "ps", "ro", "ru", "sd", "si", "sk", "sl", "sm", "sq", "sr", "su", "sv", "ta", "te", "tg", "th", "tr", "ug", "uk", "ur", "uz", "vi", "yi", "zh", "rn", "ar-dz", "ar-eg", "ar-ly", "ar-ma", "ar-sd", "ar-tn", "mg-plateau"),
     "wspr-small-2025-11-11-12-12--mpk" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo"),
     "wspr-small-2025-11-11-12-12--mpk-rp" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo"),
     "hypaai-whisper-base-v1-04292-lhy" to listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tw", "urh"),
@@ -280,6 +281,7 @@ object KeyboardLanguageCatalog {
     "gpt-4o-mini-tts" to listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv"),
     "tts-1" to listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv"),
     "tts-1-hd" to listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv"),
+    "auto" to listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "es", "sw", "tw", "urh", "hi-in", "id-id", "it-it", "ja-jp", "ko-kr", "af", "am", "bm", "bem", "ber", "ny", "ee", "ff", "kr", "ki", "rw", "kri", "ln", "lg", "mg", "nr", "om", "nso", "st", "sn", "so", "ss", "ti", "ts", "tn", "umb", "ve", "wo", "xh", "zu", "de", "as", "az", "be", "bg", "bn", "bs", "ca", "ceb", "co", "cs", "cy", "da", "dv", "el", "eo", "et", "eu", "fa", "fi", "fil", "fy", "ga", "gd", "gl", "gu", "haw", "he", "hmn", "hr", "ht", "hu", "hy", "is", "jv", "ka", "kk", "km", "kn", "ku", "ky", "la", "lb", "lo", "lt", "lv", "mi", "mk", "ml", "mn", "mni-mtei", "mr", "ms", "mt", "my", "ne", "nl", "no", "or", "pa", "pl", "ps", "ro", "ru", "sd", "si", "sk", "sl", "sm", "sq", "sr", "su", "sv", "ta", "te", "tg", "th", "tr", "ug", "uk", "ur", "uz", "vi", "yi", "zh", "rn", "ar-dz", "ar-eg", "ar-ly", "ar-ma", "ar-sd", "ar-tn", "mg-plateau"),
     "hypa-orpheus-3b-tts-vc-flt" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "es", "sw", "tv", "tw", "urh", "yo"),
     "hypa-orpheus-3b-tts-vc-flt-rp" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "es", "sw", "tv", "tw", "urh", "yo"),
     "hypa-orpheus-3b-tts-vc-ext-izg" to listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "es", "sw", "tv", "tw", "urh", "yo"),
@@ -328,6 +330,9 @@ object KeyboardLanguageCatalog {
       "ib" to listOf("alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"),
       "id" to listOf("alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"),
       "tv" to listOf("alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"),
+    ),
+    "auto" to mapOf(
+
     ),
     "hypa-orpheus-3b-tts-vc-flt" to mapOf(
       "an" to listOf("Deborah", "Enoima", "Inimform", "Ntakidara", "Uduak", "Utibeima"),
@@ -653,16 +658,16 @@ object KeyboardLanguageCatalog {
   }
 
   fun sttLanguages(model: String): List<TranslationLanguage> {
-    val codes = sttLanguageCodesByModel[model] ?: listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo")
+    val codes = sttLanguageCodesByModel[model] ?: listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "es", "sw", "tw", "urh", "hi-in", "id-id", "it-it", "ja-jp", "ko-kr", "af", "am", "bm", "bem", "ber", "ny", "ee", "ff", "kr", "ki", "rw", "kri", "ln", "lg", "mg", "nr", "om", "nso", "st", "sn", "so", "ss", "ti", "ts", "tn", "umb", "ve", "wo", "xh", "zu", "de", "as", "az", "be", "bg", "bn", "bs", "ca", "ceb", "co", "cs", "cy", "da", "dv", "el", "eo", "et", "eu", "fa", "fi", "fil", "fy", "ga", "gd", "gl", "gu", "haw", "he", "hmn", "hr", "ht", "hu", "hy", "is", "jv", "ka", "kk", "km", "kn", "ku", "ky", "la", "lb", "lo", "lt", "lv", "mi", "mk", "ml", "mn", "mni-mtei", "mr", "ms", "mt", "my", "ne", "nl", "no", "or", "pa", "pl", "ps", "ro", "ru", "sd", "si", "sk", "sl", "sm", "sq", "sr", "su", "sv", "ta", "te", "tg", "th", "tr", "ug", "uk", "ur", "uz", "vi", "yi", "zh", "rn", "ar-dz", "ar-eg", "ar-ly", "ar-ma", "ar-sd", "ar-tn", "mg-plateau")
     val selected = languagesFromCodes(codes)
     return listOf(autoDetect) +
-      selected.ifEmpty { languagesFromCodes(listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "so", "es", "sw", "tv", "tw", "urh", "yo")) }
+      selected.ifEmpty { languagesFromCodes(listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "es", "sw", "tw", "urh", "hi-in", "id-id", "it-it", "ja-jp", "ko-kr", "af", "am", "bm", "bem", "ber", "ny", "ee", "ff", "kr", "ki", "rw", "kri", "ln", "lg", "mg", "nr", "om", "nso", "st", "sn", "so", "ss", "ti", "ts", "tn", "umb", "ve", "wo", "xh", "zu", "de", "as", "az", "be", "bg", "bn", "bs", "ca", "ceb", "co", "cs", "cy", "da", "dv", "el", "eo", "et", "eu", "fa", "fi", "fil", "fy", "ga", "gd", "gl", "gu", "haw", "he", "hmn", "hr", "ht", "hu", "hy", "is", "jv", "ka", "kk", "km", "kn", "ku", "ky", "la", "lb", "lo", "lt", "lv", "mi", "mk", "ml", "mn", "mni-mtei", "mr", "ms", "mt", "my", "ne", "nl", "no", "or", "pa", "pl", "ps", "ro", "ru", "sd", "si", "sk", "sl", "sm", "sq", "sr", "su", "sv", "ta", "te", "tg", "th", "tr", "ug", "uk", "ur", "uz", "vi", "yi", "zh", "rn", "ar-dz", "ar-eg", "ar-ly", "ar-ma", "ar-sd", "ar-tn", "mg-plateau")) }
   }
 
   fun ttsLanguages(model: String): List<TranslationLanguage> {
-    val codes = ttsLanguageCodesByModel[model] ?: listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "es", "sw", "tv", "tw", "urh", "yo")
+    val codes = ttsLanguageCodesByModel[model] ?: listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "es", "sw", "tw", "urh", "hi-in", "id-id", "it-it", "ja-jp", "ko-kr", "af", "am", "bm", "bem", "ber", "ny", "ee", "ff", "kr", "ki", "rw", "kri", "ln", "lg", "mg", "nr", "om", "nso", "st", "sn", "so", "ss", "ti", "ts", "tn", "umb", "ve", "wo", "xh", "zu", "de", "as", "az", "be", "bg", "bn", "bs", "ca", "ceb", "co", "cs", "cy", "da", "dv", "el", "eo", "et", "eu", "fa", "fi", "fil", "fy", "ga", "gd", "gl", "gu", "haw", "he", "hmn", "hr", "ht", "hu", "hy", "is", "jv", "ka", "kk", "km", "kn", "ku", "ky", "la", "lb", "lo", "lt", "lv", "mi", "mk", "ml", "mn", "mni-mtei", "mr", "ms", "mt", "my", "ne", "nl", "no", "or", "pa", "pl", "ps", "ro", "ru", "sd", "si", "sk", "sl", "sm", "sq", "sr", "su", "sv", "ta", "te", "tg", "th", "tr", "ug", "uk", "ur", "uz", "vi", "yi", "zh", "rn", "ar-dz", "ar-eg", "ar-ly", "ar-ma", "ar-sd", "ar-tn", "mg-plateau")
     val selected = languagesFromCodes(codes)
-    return selected.ifEmpty { languagesFromCodes(listOf("an", "ar", "ebz", "ef", "ego", "en", "fon", "fr", "ha", "ib", "id", "igl", "ig", "ige", "nup", "pcm", "pt", "es", "sw", "tv", "tw", "urh", "yo")) }
+    return selected.ifEmpty { languagesFromCodes(listOf("en", "yo", "ig", "ha", "an", "ef", "ib", "id", "tv", "ar", "ebz", "ego", "fon", "fr", "igl", "ige", "nup", "pcm", "pt", "es", "sw", "tw", "urh", "hi-in", "id-id", "it-it", "ja-jp", "ko-kr", "af", "am", "bm", "bem", "ber", "ny", "ee", "ff", "kr", "ki", "rw", "kri", "ln", "lg", "mg", "nr", "om", "nso", "st", "sn", "so", "ss", "ti", "ts", "tn", "umb", "ve", "wo", "xh", "zu", "de", "as", "az", "be", "bg", "bn", "bs", "ca", "ceb", "co", "cs", "cy", "da", "dv", "el", "eo", "et", "eu", "fa", "fi", "fil", "fy", "ga", "gd", "gl", "gu", "haw", "he", "hmn", "hr", "ht", "hu", "hy", "is", "jv", "ka", "kk", "km", "kn", "ku", "ky", "la", "lb", "lo", "lt", "lv", "mi", "mk", "ml", "mn", "mni-mtei", "mr", "ms", "mt", "my", "ne", "nl", "no", "or", "pa", "pl", "ps", "ro", "ru", "sd", "si", "sk", "sl", "sm", "sq", "sr", "su", "sv", "ta", "te", "tg", "th", "tr", "ug", "uk", "ur", "uz", "vi", "yi", "zh", "rn", "ar-dz", "ar-eg", "ar-ly", "ar-ma", "ar-sd", "ar-tn", "mg-plateau")) }
   }
 
   fun voices(languageCode: String, model: String): List<String> =
@@ -702,7 +707,7 @@ object KeyboardLanguageCatalog {
     ),
     "TTS" to mapOf(
       "openai" to listOf("gpt-4o-mini-tts", "tts-1", "tts-1-hd"),
-      "hypaai" to listOf("hypa-orpheus-3b-tts-vc-flt", "hypa-orpheus-3b-tts-vc-flt-rp", "hypa-orpheus-3b-tts-vc-ext-izg", "hypaai-orpheus-v5-pqq"),
+      "hypaai" to listOf("auto", "hypa-orpheus-3b-tts-vc-flt", "hypa-orpheus-3b-tts-vc-flt-rp", "hypa-orpheus-3b-tts-vc-ext-izg", "hypaai-orpheus-v5-pqq"),
       "google" to listOf("gemini-3.1-flash-tts-preview", "gemini-3.8-flash-tts", "gemini-3.8-flash-lite-tts", "gemini-2.5-pro-tts"),
       "mansa" to listOf("mansa-tts"),
       "yarnGPT" to listOf("yarn_gpt"),
@@ -710,7 +715,7 @@ object KeyboardLanguageCatalog {
     ),
     "ASR" to mapOf(
       "openai" to listOf("gpt-4o-mini-transcribe", "whisper-1", "gpt-4o-transcribe", "gpt-transcribe", "gpt-4o-transcribe-diarize"),
-      "hypaai" to listOf("wspr-small-2025-11-11-12-12--mpk", "wspr-small-2025-11-11-12-12--mpk-rp", "hypaai-whisper-base-v1-04292-lhy", "hypa-whisper-v2-stream-runpod"),
+      "hypaai" to listOf("auto", "wspr-small-2025-11-11-12-12--mpk", "wspr-small-2025-11-11-12-12--mpk-rp", "hypaai-whisper-base-v1-04292-lhy", "hypa-whisper-v2-stream-runpod"),
       "google" to listOf("gemini-3.5-flash", "gemini-3.5-flash-lite", "gemini-3.8-flash", "gemini-3.5-transcribe"),
       "mansa" to listOf("mansa-transcribe"),
       "elevenlabs" to listOf("scribe_v2"),

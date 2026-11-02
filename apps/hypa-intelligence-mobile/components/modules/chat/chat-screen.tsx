@@ -41,7 +41,6 @@ import {
   Plus,
   Sparkles,
   Square,
-  Trash2,
   UserRound,
   Volume2,
   Waves,
@@ -91,10 +90,9 @@ import { FONTS } from "@/constants/fonts";
 import { Text } from "@/components/ui/text";
 
 const STARTERS = [
-  "Translate this for my mum and read it in Igbo.",
-  "Explain this form in Hausa.",
-  "What does ìfẹ́ mean?",
-  "Help me price this order and draft a bilingual reply.",
+  "Make a flyer: Ada's Tailoring, open Saturdays, in Igbo and English.",
+  "Translate this screenshot to Swahili and tell me what it says.",
+  "Translate this image to Efik, make it more polite, give me the image and read it out.",
 ];
 
 export function ChatScreen({
@@ -372,25 +370,6 @@ export function ChatScreen({
       report(error);
     }
   };
-  const deleteCurrent = () => {
-    if (!chat.chatId || locked) return;
-    Alert.alert(
-      "Delete chat?",
-      "This removes this chat’s messages, images and audio.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            void updateChat(
-              { id: chat.chatId!, title: "", created_at: "" },
-              true,
-            ),
-        },
-      ],
-    );
-  };
   const speak = async (message: ChatMessage) => {
     const language = settings?.ttsLanguage || languages.targetLang;
     const voice = resolvePlaybackVoice("output", language);
@@ -481,74 +460,83 @@ export function ChatScreen({
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={process.env.EXPO_OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={process.env.EXPO_OS === "ios" ? insets.top : 0}
+        // The view sits below the status bar (edge-to-edge on both platforms), so offset by it.
+        keyboardVerticalOffset={insets.top}
       >
         <View
           style={{
             flexDirection: "row",
             alignItems: "center",
-            gap: 6,
+            justifyContent: "space-between",
             paddingTop: 8,
           }}
         >
-          {id &&
-            iconButton(
-              "Back to Chat",
-              <ArrowLeft color={colors.icon} size={21} />,
-              () => router.back(),
-            )}
-          <Text
-            accessibilityRole="header"
+          {/* Centered on the row, not between the groups, so uneven button counts don't shift it. */}
+          <View
+            pointerEvents="none"
             style={{
-              flex: 1,
-              color: colors.text,
-              fontFamily: FONTS.main.semiBold,
-              fontSize: 26,
-              lineHeight: 34,
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 8,
+              bottom: 0,
+              alignItems: "center",
+              justifyContent: "center",
             }}
           >
-            Chat
-          </Text>
-          {token &&
-            iconButton(
-              "Chat history",
-              <History color={colors.icon} size={21} />,
-              () => setHistoryOpen(true),
-              locked,
-            )}
-          {chat.chatId &&
-            token &&
-            iconButton(
-              "Delete chat",
-              <Trash2 color={colors.icon} size={19} />,
-              deleteCurrent,
-              locked,
-            )}
-          <GlassIconButton
-            accessibilityLabel="New chat"
-            fallbackClassName="bg-zinc-100 dark:bg-zinc-900"
-            disabled={locked}
-            onPress={() => {
-              stopVoice();
-              setDraft("");
-              setImages([]);
-              if (id)
-                router.replace({
-                  pathname: "/chat",
-                  params: { new: randomUUID() },
-                });
-              else chat.reset();
-            }}
-          >
-            <Plus color={colors.icon} size={22} />
-          </GlassIconButton>
-          <GlassIconButton
-            accessibilityLabel="Profile"
-            fallbackClassName="bg-zinc-100 dark:bg-zinc-900"
-            onPress={() => router.push("/profile")}
-          >
-            <UserRound color={colors.icon} size={20} />
-          </GlassIconButton>
+            <Text
+              accessibilityRole="header"
+              style={{
+                color: colors.text,
+                fontFamily: FONTS.main.medium,
+                fontSize: 22,
+              }}
+            >
+              Chat
+            </Text>
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            {id &&
+              iconButton(
+                "Back to Chat",
+                <ArrowLeft color={colors.icon} size={21} />,
+                () => router.back(),
+              )}
+            {token &&
+              iconButton(
+                "Chat history",
+                <History color={colors.icon} size={21} />,
+                () => setHistoryOpen(true),
+                locked,
+              )}
+          </View>
+          <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
+            <GlassIconButton
+              accessibilityLabel="New chat"
+              fallbackClassName="bg-zinc-100 dark:bg-zinc-900"
+              disabled={locked}
+              onPress={() => {
+                stopVoice();
+                setDraft("");
+                setImages([]);
+                if (id)
+                  router.replace({
+                    pathname: "/chat",
+                    params: { new: randomUUID() },
+                  });
+                else chat.reset();
+              }}
+            >
+              <Plus color={colors.icon} size={22} />
+            </GlassIconButton>
+            <GlassIconButton
+              accessibilityLabel="Profile"
+              fallbackClassName="bg-zinc-100 dark:bg-zinc-900"
+              onPress={() => router.push("/profile")}
+            >
+              <UserRound color={colors.icon} size={20} />
+            </GlassIconButton>
+          </View>
         </View>
         <View
           style={{

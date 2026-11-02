@@ -1,10 +1,11 @@
 import React from 'react'
-import { View, Text, StyleSheet, useColorScheme } from 'react-native'
+import { View, Text, StyleSheet } from 'react-native'
 import { ArrowLeft, History, UserRound } from 'lucide-react-native'
 import { useRouter } from 'expo-router'
 import { FONTS } from '@/constants/fonts'
 import { withReturnTo } from '@/lib/navigation'
-import { GlassIconButton, isLiquidGlassAvailable } from '@/components/ui/glass-icon-button'
+import { GlassIconButton } from '@/components/ui/glass-icon-button'
+import { useThemeColors } from '@/hooks/use-theme-color'
 
 type Props = {
   title?: string
@@ -24,8 +25,7 @@ export function TopBar({
   returnTo = '/(dashboard)/dictionary',
 }: Props) {
   const router = useRouter()
-  const isDark = useColorScheme() === 'dark'
-  const glass = isLiquidGlassAvailable()
+  const colors = useThemeColors()
 
   const handleProfile = () => {
     if (onOpenAccount) return onOpenAccount()
@@ -42,28 +42,26 @@ export function TopBar({
     } as any)
   }
 
-  const iconColor = glass && isDark ? '#f5f5f5' : '#111'
-
   return (
     <View style={styles.container}>
       {showBack ? (
-        <GlassIconButton onPress={() => router.back()} fallbackClassName="bg-[#f5f5f5]">
-          <ArrowLeft size={20} color={iconColor} />
+        <GlassIconButton onPress={() => router.back()} fallbackClassName="bg-zinc-100 dark:bg-zinc-900">
+          <ArrowLeft size={20} color={colors.icon} />
         </GlassIconButton>
       ) : showHistory ? (
-        <GlassIconButton onPress={handleHistory} fallbackClassName="bg-[#f5f5f5]">
-          <History size={20} color={iconColor} />
+        <GlassIconButton onPress={handleHistory} fallbackClassName="bg-zinc-100 dark:bg-zinc-900">
+          <History size={20} color={colors.icon} />
         </GlassIconButton>
       ) : (
         <View style={styles.iconBtnPlaceholder} />
       )}
 
       <View style={styles.center}>
-        <Text style={[styles.titleText, { color: isDark ? '#fff' : '#111' }]}>{title}</Text>
+        <Text style={[styles.titleText, { color: colors.text }]}>{title}</Text>
       </View>
 
-      <GlassIconButton onPress={handleProfile} fallbackClassName="bg-[#f5f5f5]">
-        <UserRound size={20} color={iconColor} />
+      <GlassIconButton onPress={handleProfile} fallbackClassName="bg-zinc-100 dark:bg-zinc-900">
+        <UserRound size={20} color={colors.icon} />
       </GlassIconButton>
     </View>
   )
@@ -75,6 +73,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
+    paddingTop: 8,
   },
   iconBtnPlaceholder: { width: 44, height: 44 },
   center: { alignItems: 'center', flex: 1 },

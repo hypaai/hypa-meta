@@ -8,6 +8,7 @@ export const translateStyles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "space-between",
     width: "100%",
+    paddingTop: 8,
   },
   languageRow: {
     flexDirection: "row",

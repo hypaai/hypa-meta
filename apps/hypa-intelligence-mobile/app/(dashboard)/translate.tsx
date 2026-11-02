@@ -7,6 +7,7 @@ import { createAudioPlayer } from 'expo-audio';
 import * as Clipboard from 'expo-clipboard';
 
 import Body from '@/components/shared/body';
+import { FONTS } from '@/constants/fonts';
 import { GlassIconButton } from '@/components/ui/glass-icon-button';
 import LanguageSelector from '@/components/ui/language-selector';
 import { Text } from '@/components/ui/text';
@@ -849,25 +850,25 @@ const Entry = () => {
           }}>
           <View style={styles.headerRow}>
             <GlassIconButton
-              fallbackClassName="bg-white dark:bg-zinc-950"
+              fallbackClassName="bg-zinc-100 dark:bg-zinc-900"
               onPress={() =>
                 router.push({
                   pathname: '/translate-history',
                   params: withReturnTo('/(dashboard)/translate'),
                 } as any)
               }>
-              <Clock3 size={20} color={text} />
+              <Clock3 size={20} color={colors.icon} />
             </GlassIconButton>
-            <Text style={{ fontSize: 22, fontWeight: '600', color: text }}>Translate</Text>
+            <Text style={{ fontSize: 22, fontFamily: FONTS.main.medium, color: text }}>Translate</Text>
             <GlassIconButton
-              fallbackClassName="bg-white dark:bg-zinc-950"
+              fallbackClassName="bg-zinc-100 dark:bg-zinc-900"
               onPress={() =>
                 router.push({
                   pathname: '/profile',
                   params: withReturnTo('/(dashboard)/translate'),
                 } as any)
               }>
-              <UserRound size={20} color={text} />
+              <UserRound size={20} color={colors.icon} />
             </GlassIconButton>
           </View>
 

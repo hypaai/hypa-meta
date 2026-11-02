@@ -85,6 +85,17 @@
     overflow-y: scroll;
     scrollbar-gutter: stable;
   }
+  /* Chat scrolls inside its own region, so the page needs no scrollbar. */
+  html:has(.chat-screen) {
+    overflow-y: hidden;
+    scrollbar-gutter: auto;
+  }
+  /* Slim scrollbars: a soft thumb that follows the theme on a clear track. */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in oklch, var(--foreground) 28%, transparent)
+      transparent;
+  }
 
   /* Stabilize globe rendering */
   .globe-wrapper {
@@ -161,5 +172,49 @@
         transparent
       );
     opacity: 0.5;
+  }
+}
+
+@keyframes tool-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+
+.tool-shimmer {
+  background: linear-gradient(
+      90deg,
+      var(--muted-foreground) 30%,
+      var(--foreground) 50%,
+      var(--muted-foreground) 70%
+    )
+    0 0 / 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: tool-shimmer 2.2s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tool-shimmer {
+    animation: none;
+    background: none;
+    color: var(--muted-foreground);
+  }
+}
+
+@keyframes rec-wave {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+.rec-wave {
+  animation: rec-wave 7s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rec-wave {
+    animation: none;
   }
 }

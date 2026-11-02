@@ -95,6 +95,8 @@ import { ImageUpload } from "@/components/shared/image-upload";
 import { getErrorMessage } from "@/lib/error";
 import { placeholderAds } from "@/constants/placeholder-ads";
 import { isAutoDetectLanguage, parseTranslation } from "@hypa/translate-core";
+import { motion } from "framer-motion";
+import { usePageEnter } from "@/hooks/use-page-enter";
 
 type Lang = LangOption & Language;
 
@@ -138,6 +140,7 @@ const isAnonymousUser = (u: any) => false;
 const user: any = null;
 
 const Home = () => {
+  const enter = usePageEnter();
   const { theme } = useTheme();
   const queryClient = useQueryClient();
   const [historyOpen, setHistoryOpen] = useState(false);
@@ -1596,7 +1599,10 @@ const Home = () => {
     <div className="flex-1 flex flex-col h-full w-full">
       <main className="flex-1 flex flex-col px-4 md:px-6 py-4 md:py-8 relative overflow-y-auto">
         <div className="mx-auto max-w-7xl flex flex-col flex-1 w-full">
-          <div className="flex flex-row items-center justify-center gap-2 sm:gap-3 md:gap-4 w-full">
+          <motion.div
+            {...enter(0)}
+            className="flex flex-row items-center justify-center gap-2 sm:gap-3 md:gap-4 w-full"
+          >
             <div className="flex flex-col items-center">
               <LangSelect
                 className="w-32 sm:w-40 shrink-0"
@@ -1653,14 +1659,15 @@ const Home = () => {
                 }}
               />
             </div>
-          </div>
+          </motion.div>
 
           <div
             className={`flex-1 mt-4 md:mt-6 grid grid-cols-1 ${
               isWebsite ? "md:grid-cols-1" : "md:grid-cols-2"
             } ${useCompactMobilePanelLayout ? "mt-3 gap-3 md:mt-6 md:gap-6" : "gap-4 md:gap-6"}`}
           >
-            <form
+            <motion.form
+              {...enter(0.1)}
               className={`panel flex ${useCompactMobilePanelLayout ? "min-h-[210px] max-h-[220px]" : "min-h-[210px] max-h-[50svh]"} flex-col overflow-hidden md:max-h-[400px] lg:max-h-[460px]`}
               onSubmit={formik.handleSubmit}
             >
@@ -2068,10 +2075,11 @@ const Home = () => {
                   </div>
                 </div>
               </div>
-            </form>
+            </motion.form>
 
             {!isWebsite && (
-              <div
+              <motion.div
+                {...enter(0.2)}
                 className={`panel bg-muted/50 flex ${useCompactMobilePanelLayout ? "min-h-[210px] max-h-[220px]" : "min-h-[210px] max-h-[50svh]"} flex-col overflow-hidden md:max-h-[400px] lg:max-h-[460px]`}
               >
                 <div className="p-2 md:p-3 flex-1 flex flex-col justify-between min-h-0 overflow-hidden">
@@ -2442,17 +2450,18 @@ const Home = () => {
                     </div>
                   </div>
                 </div>
-              </div>
+              </motion.div>
             )}
           </div>
         </div>
 
         {/* App Store Button */}
-        <div
+        <motion.div
+          {...enter(0.3)}
           className={`w-full max-w-7xl mx-auto flex-shrink-0 flex justify-center ${useCompactMobilePanelLayout ? "mt-2 pb-3" : "mt-6 pb-6"} md:mt-8 lg:mt-10 md:pb-6`}
         >
           <GetAppButtons />
-        </div>
+        </motion.div>
       </main>
 
       {/* Feedback Modal */}

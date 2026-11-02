@@ -10,6 +10,8 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { DictionaryModule } from './dictionary/dictionary.module';
 import { TranslateModule } from './translate/translate.module';
 import { AiModule } from 'src/ai/ai.module';
+import { AgentModule } from './agent/agent.module';
+import { ConversationsModule } from './conversations/conversations.module';
 
 @Module({
   imports: [
@@ -22,6 +24,8 @@ import { AiModule } from 'src/ai/ai.module';
     BookmarkModule,
     DeveloperModule,
     WebhooksModule,
+    AgentModule,
+    ConversationsModule,
   ],
   providers: [
     {

@@ -12,3 +12,4 @@ export {
 } from "./tools.ts";
 export { LANGUAGES, resolveLanguage, canonicalLanguage, defaultVoiceFor } from "./catalog.ts";
 export type { Language } from "./types.ts";
+export { agentHistorySchema, type AgentHistoryMessage } from "./agent-history.ts";

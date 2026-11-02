@@ -1,0 +1,34 @@
+{
+  "links": [
+    {
+      "id": "youtube",
+      "label": "YouTube",
+      "href": "https://www.youtube.com/channel/UCk7l6DVjWJagx1rRgx1RnNg"
+    },
+    {
+      "id": "linkedin",
+      "label": "LinkedIn",
+      "href": "https://www.linkedin.com/company/hypa-intelligence/"
+    },
+    {
+      "id": "facebook",
+      "label": "Facebook",
+      "href": "https://www.facebook.com/profile.php?id=61585880892427"
+    },
+    {
+      "id": "instagram",
+      "label": "Instagram",
+      "href": "https://www.instagram.com/hypaintelligence/"
+    },
+    {
+      "id": "threads",
+      "label": "Threads",
+      "href": "https://www.threads.com/@hypaintelligence"
+    },
+    {
+      "id": "x",
+      "label": "X",
+      "href": "https://x.com/hypa_ai"
+    }
+  ]
+}

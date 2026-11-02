@@ -1,0 +1,56 @@
+[
+  {
+    "title": "Write anything",
+    "description": "Get help with writing any content",
+    "icon": "✍️"
+  },
+  {
+    "title": "Build an idea",
+    "description": "Develop and refine your concepts",
+    "icon": "💡"
+  },
+  {
+    "title": "Translate to Yoruba",
+    "description": "Convert text and phrases to Yoruba language",
+    "icon": "🇳🇬"
+  },
+  {
+    "title": "Explain a concept",
+    "description": "Break down complex topics into simple terms",
+    "icon": "🧠"
+  },
+  {
+    "title": "Summarize text",
+    "description": "Get concise summaries of long content",
+    "icon": "📝"
+  },
+  {
+    "title": "Answer questions",
+    "description": "Get detailed answers to any question",
+    "icon": "❓"
+  },
+  {
+    "title": "Translate “good morning, how are you?” into Yoruba",
+    "description": "Hypa's translate tool",
+    "icon": "🇳🇬",
+    "tools": true
+  },
+  {
+    "title": "Say “welcome to Lagos” in Hausa and read it out",
+    "description": "Translation with spoken audio",
+    "icon": "🔊",
+    "tools": true
+  },
+  {
+    "title": "What does the word “ọ̀rẹ́” mean?",
+    "description": "Dictionary lookup",
+    "icon": "📖",
+    "tools": true
+  },
+  {
+    "title": "Read the text in this photo and translate it to English",
+    "description": "Add a photo first",
+    "icon": "📷",
+    "tools": true
+  }
+]

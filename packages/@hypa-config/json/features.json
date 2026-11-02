@@ -1,0 +1,42 @@
+{
+  "features": [
+    {
+      "title": "Instant Context Awareness",
+      "description": "Hypa detects the source language automatically and keeps the original beside the translation so you never lose context."
+    },
+    {
+      "title": "Voice Input & Playback",
+      "description": "Dictate in your native language, then listen to accurate pronunciation with customizable natural voices."
+    },
+    {
+      "title": "Tone Controls That Fit the Moment",
+      "description": "Switch between formal, casual, or slang modes to localize responses for business, social, or on-the-go conversations."
+    },
+    {
+      "title": "Smart History & Favorites",
+      "description": "Every translation is saved with quick filters, favorites, and cross-device sync so you can reuse important phrases fast."
+    },
+    {
+      "title": "Launch Hypa Anywhere",
+      "description": "Use the browser extension, inline selection menu, or keyboard shortcut to translate without switching apps."
+    }
+  ],
+  "faqs": [
+    {
+      "title": "How do I translate text or webpages fastest?",
+      "description": "Paste or drop text directly into Hypa, or use the browser extension to translate any page in one click. Hypa auto-detects the source language and keeps the original side-by-side so you can compare instantly."
+    },
+    {
+      "title": "Can Hypa read translations out loud?",
+      "description": "Yes. Tap the speaker icon to hear the translation in a natural voice. You can also switch voices or set Hypa to auto-play audio in Settings."
+    },
+    {
+      "title": "What happens to my translation history?",
+      "description": "Hypa stores your recent translations securely across devices when you're signed in. Favorite important phrases to pin them, or clear entries any time from History settings."
+    },
+    {
+      "title": "Does Hypa work offline?",
+      "description": "You need an internet connection for translations, but your history and favorites are cached locally for quick reference."
+    }
+  ]
+}

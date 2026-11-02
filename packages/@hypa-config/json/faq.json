@@ -1,0 +1,139 @@
+{
+  "faqItems": [
+    {
+      "question": "How do I get started with Hypa API?",
+      "answer": [
+        {
+          "text": "Sign up for a free account at Hypa Lab, navigate to API Keys in the sidebar, and generate your first key. Follow the "
+        },
+        { "link": { "section": 1, "text": "Quickstart Guide" } },
+        { "text": " to make your first request in under 5 minutes." }
+      ]
+    },
+    {
+      "question": "What AI models are available?",
+      "answer": [
+        {
+          "text": "Hypa supports GPT-4o, GPT-5, and proprietary HypaAI models for chat, translation, TTS, ASR, and OCR. See the "
+        },
+        { "link": { "section": 3, "text": "Models & Providers" } },
+        { "text": " page for the full catalogue." }
+      ]
+    },
+    {
+      "question": "Can I use Hypa API for commercial projects?",
+      "answer": "Yes. All paid plans include commercial usage rights with credit-based pricing — you only pay for what you use. Contact us for enterprise plans with custom SLAs."
+    },
+    {
+      "question": "How is my data handled?",
+      "answer": [
+        {
+          "text": "We do not train on your data. All API traffic is encrypted with TLS 1.2+. Data is retained only for the duration of the request. Read our full "
+        },
+        {
+          "link": {
+            "section": 6,
+            "anchor": "data-handling",
+            "text": "Data Handling"
+          }
+        },
+        { "text": " policy for details." }
+      ]
+    },
+    {
+      "question": "Is there a free tier?",
+      "answer": "Yes. The free tier includes limited API calls per month, access to all model types, and basic analytics — ideal for prototyping. Upgrade for higher rate limits and priority access."
+    },
+    {
+      "question": "What languages are supported for translation?",
+      "answer": [
+        {
+          "text": "Hypa supports 11+ languages for translation, transcription, and text-to-speech. Check the "
+        },
+        {
+          "link": {
+            "section": 3,
+            "anchor": "supported-languages",
+            "text": "Supported Languages"
+          }
+        },
+        { "text": " table for the full list." }
+      ]
+    },
+    {
+      "question": "How do I handle streaming responses?",
+      "answer": [
+        {
+          "text": "Set \"stream\": true in your request body. Tokens arrive as Server-Sent Events — parse each line starting with \"data: \" as JSON. See "
+        },
+        {
+          "link": {
+            "section": 4,
+            "anchor": "streaming",
+            "text": "Streaming Responses"
+          }
+        },
+        { "text": " for complete examples." }
+      ]
+    },
+    {
+      "question": "What happens when I run out of credits?",
+      "answer": [
+        {
+          "text": "Requests return a 403 INSUFFICIENT_CREDITS error. Top up from the Usage page in your dashboard. See "
+        },
+        {
+          "link": {
+            "section": 6,
+            "anchor": "credits",
+            "text": "Credits System"
+          }
+        },
+        { "text": " for details on how credits work." }
+      ]
+    },
+    {
+      "question": "Can I switch between providers?",
+      "answer": "Yes. Change the \"provider\" and \"model\" parameters in your request. The request/response format is consistent across providers, making switching seamless."
+    },
+    {
+      "question": "How do I contact support?",
+      "answer": "Email support@hypaintelligence.com with your request ID and a description of the issue. Include \"URGENT\" in the subject for production-blocking problems. We respond within 24 hours."
+    }
+  ],
+  "supportChannels": [
+    {
+      "title": "Email Support",
+      "desc": "Technical assistance and general inquiries.",
+      "action": "support@hypaintelligence.com",
+      "icon": "mail",
+      "linkSection": null
+    },
+    {
+      "title": "API Reference",
+      "desc": "Full endpoint documentation with request/response examples.",
+      "action": "Browse docs",
+      "icon": "book",
+      "linkSection": 2
+    },
+    {
+      "title": "Community",
+      "desc": "Join our developer community to share knowledge and learn.",
+      "action": "Coming soon",
+      "icon": "users",
+      "linkSection": null
+    },
+    {
+      "title": "Status Page",
+      "desc": "Real-time service status and incident history.",
+      "action": "status.hypaintelligence.com",
+      "icon": "activity",
+      "linkSection": null
+    }
+  ],
+  "supportCallout": {
+    "type": "info",
+    "title": "Response times",
+    "text": "We respond to all support requests within 24 hours. Enterprise customers receive priority support with guaranteed SLAs."
+  }
+}

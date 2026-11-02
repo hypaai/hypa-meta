@@ -1,0 +1,34 @@
+{
+  "features": [
+    {
+      "id": "multilingual-search",
+      "title": "Multilingual Search",
+      "description": "Search across thousands of languages at once. Type in any language and find definitions, translations, and usage examples instantly."
+    },
+    {
+      "id": "cultural-context",
+      "title": "Cultural Context",
+      "description": "Every word comes with cultural notes, usage patterns, and regional variations so you understand meaning beyond the literal translation."
+    },
+    {
+      "id": "pronunciation-guide",
+      "title": "Pronunciation Guides",
+      "description": "Listen to native speaker pronunciations and phonetic breakdowns for accurate learning and communication."
+    },
+    {
+      "id": "preservation-focus",
+      "title": "Language Preservation",
+      "description": "We actively document endangered languages in partnership with communities to ensure no language is lost to time."
+    },
+    {
+      "id": "community-driven",
+      "title": "Community Driven",
+      "description": "Our entries are enriched by native speakers and linguists, ensuring authenticity and depth in every definition."
+    },
+    {
+      "id": "offline-access",
+      "title": "Offline Access",
+      "description": "Download language packs for offline use. Access definitions, pronunciations, and examples without an internet connection."
+    }
+  ]
+}

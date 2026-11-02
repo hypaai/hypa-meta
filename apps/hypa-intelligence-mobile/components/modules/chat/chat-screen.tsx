@@ -98,9 +98,12 @@ const STARTERS = [
 export function ChatScreen({
   id,
   resetKey,
+  initialDraft,
 }: {
   id?: string;
   resetKey?: string;
+  /** Text to prefill, e.g. from the keyboard's "Open in Hypa". */
+  initialDraft?: string;
 }) {
   const chat = useAgentChat(id, resetKey);
   const colors = useThemeColors();
@@ -165,12 +168,12 @@ export function ChatScreen({
 
   useEffect(() => {
     session.current++;
-    setDraft("");
+    setDraft(initialDraft ?? "");
     setImages([]);
     setPhoto(null);
     setMenu(null);
     stopVoice();
-  }, [token, id, resetKey, stopVoice]);
+  }, [token, id, resetKey, initialDraft, stopVoice]);
   useEffect(() => {
     mounted.current = true;
     return () => {

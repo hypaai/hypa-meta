@@ -268,10 +268,15 @@ class KeyboardViewController: UIInputViewController {
   private var activeDictionarySpeechIdentifier: String?
   private var ttsRequestGeneration = 0
 
-  private var sttAudioEngine: AVAudioEngine?
-  private let sttAudioQueue = DispatchQueue(
-    label: "com.hypaintelligence.hypaintelligence.stt-audio")
-  private var sttFullRecording = Data()
+  // iOS keyboards can't use the mic; the Hypa app records for us (KeyboardMic in
+  // hypa-keyboard-storage). Names must match that file.
+  private static let micStartNotification = "com.hypaintelligence.keyboard-mic.start"
+  private static let micStopNotification = "com.hypaintelligence.keyboard-mic.stop"
+  private static let micHeartbeatKey = "keyboard_mic_heartbeat"
+  private static let micFileName = "keyboard-mic.pcm"
+  /// Which tool ("stt" or "ask") is recording, and since when, so a fresh keyboard resumes it.
+  private static let micOwnerKey = "keyboard_mic_owner"
+  private static let micStartedAtKey = "keyboard_mic_started_at"
   private var sttRecordedWav: Data?
   private var isSttStarting = false
   private var isSttListening = false
@@ -627,6 +632,7 @@ class KeyboardViewController: UIInputViewController {
     syncBoardModeToHostField()
     hostFieldSignature = currentHostFieldSignature()
     resumeAskCamera()
+    resumeAppMic()
     rebuildKeyboard()
     publishPredictionContext()
     if usesNeuralEngine { modelQueue.async { [tinyKeys] in tinyKeys.load() } }
@@ -1829,7 +1835,6 @@ class KeyboardViewController: UIInputViewController {
     case .voice:
       stopTts()
       sttCapturedText = ""
-      sttFullRecording = Data()
       sttRecordedWav = nil
       hasSttRecordingReady = false
       featureMode = .stt
@@ -1911,6 +1916,7 @@ class KeyboardViewController: UIInputViewController {
     let header = UIView()
     header.backgroundColor = .clear
     let cancel = makeCancelButton { [weak self] in
+      if self?.isSttListening == true { self?.cancelAppMic() }
       self?.stopSttListening()
       self?.stopSttPreview()
       self?.featureMode = .keyboard
@@ -2039,7 +2045,6 @@ class KeyboardViewController: UIInputViewController {
         self.stopSttPreview()
         self.hasSttRecordingReady = false
         self.sttRecordedWav = nil
-        self.sttFullRecording = Data()
         self.rebuildKeyboard()
       }, for: .touchUpInside)
 
@@ -2364,7 +2369,6 @@ class KeyboardViewController: UIInputViewController {
   private var askRecordingStartedAt = Date()
   private var askRecordingTimer: Timer?
   private weak var askRecordingLabel: UILabel?
-  private var askMicUnavailable = false
   private var askShowsDetails = false
   private var askCopied = false
   /// Earlier turns of this Ask session, sent so Hypa can follow up on its own question.
@@ -2410,6 +2414,7 @@ class KeyboardViewController: UIInputViewController {
   }
 
   private func closeAsk() {
+    if isAskRecording { cancelAppMic() }
     resetAsk()
     discardTranslationUndo(refreshUI: false)
     featureMode = .keyboard
@@ -2867,48 +2872,41 @@ class KeyboardViewController: UIInputViewController {
   private func startAskRecording() {
     guard !isAskRecording, askTurn == nil else { return }
     stopTts()
-    AVAudioSession.sharedInstance().requestRecordPermission { [weak self] allowed in
-      DispatchQueue.main.async {
-        guard let self, self.featureMode == .ask else { return }
-        guard allowed else {
-          self.askMicUnavailable = true
-          self.refreshAsk()
-          return
-        }
-        do {
-          try self.startAudioCapture()
-          self.isAskRecording = true
-          self.askRecordingStartedAt = Date()
-          self.askRecordingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
-            [weak self] _ in
-            guard let self else { return }
-            self.askRecordingLabel?.text = self.askRecordingElapsed()
-          }
-        } catch {
-          devLog("[ASK] ✗ %@", error.localizedDescription)
-          self.askMicUnavailable = true
-        }
-        self.refreshAsk()
-      }
+    startAppMic(owner: "ask") { [weak self] in
+      guard let self else { return }
+      self.stopAskRecording(send: false)
+      self.refreshAsk()
+    }
+    beginAskRecording(startedAt: Date())
+    refreshAsk()
+  }
+
+  private func beginAskRecording(startedAt: Date) {
+    isAskRecording = true
+    askRecordingStartedAt = startedAt
+    askRecordingTimer?.invalidate()
+    askRecordingTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) {
+      [weak self] _ in
+      guard let self else { return }
+      self.askRecordingLabel?.text = self.askRecordingElapsed()
     }
   }
 
+  /// send: false only resets this keyboard; the app's recording is stopped by
+  /// stopAppMic/cancelAppMic, so leaving for the app doesn't end it.
   private func stopAskRecording(send: Bool) {
     guard isAskRecording else { return }
-    stopAudioCapture()
     isAskRecording = false
     askRecordingTimer?.invalidate()
     askRecordingTimer = nil
-    let pcm: Data = sttAudioQueue.sync {
-      let recorded = sttFullRecording
-      sttFullRecording = Data()
-      return recorded
+    guard send else { return }
+    refreshAsk()
+    let generation = askGeneration
+    stopAppMic { [weak self] pcm in
+      guard let self, generation == self.askGeneration else { return }
+      guard let pcm, !pcm.isEmpty else { return self.refreshAsk() }
+      self.sendAsk(audio: self.buildWavData(pcm: pcm, sampleRate: 16000))
     }
-    guard send, !pcm.isEmpty else {
-      if send { refreshAsk() }
-      return
-    }
-    sendAsk(audio: buildWavData(pcm: pcm, sampleRate: 16000))
   }
 
   private func askRecordingElapsed() -> String {
@@ -3090,8 +3088,7 @@ class KeyboardViewController: UIInputViewController {
     label.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
     let caret = makeBlinkingCaret()
     if askInput.isEmpty {
-      label.text = !askHistory.isEmpty ? "Reply to Hypa…"
-        : askMicUnavailable ? "Type your instruction…" : "Tell Hypa what to do…"
+      label.text = !askHistory.isEmpty ? "Reply to Hypa…" : "Tell Hypa what to do…"
       label.textColor = UIColor(hex: "#A1A1AA")
       label.lineBreakMode = .byTruncatingTail
       text.addArrangedSubview(caret)
@@ -3105,12 +3102,10 @@ class KeyboardViewController: UIInputViewController {
     }
 
     let mic = makeSearchCircleIconButton(
-      image: sfSymbol(askMicUnavailable ? "mic.slash" : "mic", size: 14, weight: .medium),
+      image: sfSymbol("mic", size: 14, weight: .medium),
       background: settings.theme.key, tint: settings.theme.label
     ) { [weak self] in self?.startAskRecording() }
     mic.accessibilityLabel = "Speak instruction"
-    mic.isEnabled = !askMicUnavailable
-    mic.alpha = askMicUnavailable ? 0.4 : 1
     header.addSubview(mic)
 
     let ready = !askInput.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -4207,7 +4202,8 @@ class KeyboardViewController: UIInputViewController {
     while let current = responder {
       if current.isKind(of: appClass), current.responds(to: selector) {
         typealias Open = @convention(c) (
-          AnyObject, Selector, NSURL, NSDictionary, @convention(block) (Bool) -> Void
+          // @escaping: UIKit keeps the block, and a non-escaping one traps when it does.
+          AnyObject, Selector, NSURL, NSDictionary, @escaping @convention(block) (Bool) -> Void
         ) -> Void
         let open = unsafeBitCast(current.method(for: selector), to: Open.self)
         open(current, selector, url as NSURL, NSDictionary(), completion)
@@ -8961,52 +8957,39 @@ class KeyboardViewController: UIInputViewController {
       return
     }
 
-    isSttStarting = true
-    sttFullRecording = Data()
     sttRecordedWav = nil
     hasSttRecordingReady = false
-    updateUI()
-    AVAudioSession.sharedInstance().requestRecordPermission { [weak self] allowed in
-      DispatchQueue.main.async {
-        guard let self else { return }
-        guard allowed else {
-          self.isSttStarting = false
-          self.showToolbarError(.stt, KeyboardErrorCatalog.micNeeded)
-          self.updateUI()
-          return
-        }
-        do {
-          try self.startAudioCapture()
-          self.isSttStarting = false
-          self.isSttListening = true
-          self.startSttPulse()
-          self.updateUI()
-          devLog("[STT] ▶ Recording started")
-        } catch {
-          devLog("[STT] ✗ %@", error.localizedDescription)
-          self.isSttStarting = false
-          self.showToolbarError(.stt, KeyboardErrorCatalog.recordingFailed)
-          self.updateUI()
-        }
-      }
+    startAppMic(owner: "stt") { [weak self] in
+      self?.isSttListening = false
+      self?.showToolbarError(.stt, KeyboardErrorCatalog.recordingFailed)
+      self?.updateUI()
     }
+    isSttListening = true
+    startSttPulse()
+    updateUI()
+    devLog("[STT] ▶ Recording started")
   }
 
   private func stopSttRecording() {
     guard isSttListening else { return }
-    stopAudioCapture()
     isSttListening = false
+    isSttStarting = true
     stopSttPulse()
-    devLog("[STT] ■ Stopped, buffer=%d bytes", sttFullRecording.count)
-    guard !sttFullRecording.isEmpty else {
-      showToolbarError(.stt, KeyboardErrorCatalog.noAudio)
-      updateUI()
-      return
-    }
-    sttRecordedWav = buildWavData(pcm: sttFullRecording, sampleRate: 16000)
-    sttFullRecording = Data()
-    hasSttRecordingReady = true
     updateUI()
+    stopAppMic { [weak self] pcm in
+      guard let self else { return }
+      self.isSttStarting = false
+      devLog("[STT] ■ Stopped, buffer=%d bytes", pcm?.count ?? -1)
+      guard let pcm, !pcm.isEmpty else {
+        self.showToolbarError(
+          .stt, pcm == nil ? KeyboardErrorCatalog.recordingFailed : KeyboardErrorCatalog.noAudio)
+        self.updateUI()
+        return
+      }
+      self.sttRecordedWav = self.buildWavData(pcm: pcm, sampleRate: 16000)
+      self.hasSttRecordingReady = true
+      self.updateUI()
+    }
   }
 
   private func stopSttListening() {
@@ -9016,8 +8999,6 @@ class KeyboardViewController: UIInputViewController {
     hasSttRecordingReady = false
     sttRecordedWav = nil
     stopSttPulse()
-    stopAudioCapture()
-    sttFullRecording = Data()
   }
 
   private func submitAsrRecording() {
@@ -9028,17 +9009,10 @@ class KeyboardViewController: UIInputViewController {
       return
     }
 
-    let wav: Data
-    if let recorded = sttRecordedWav {
-      wav = recorded
-    } else {
-      guard !sttFullRecording.isEmpty else {
-        showToolbarError(.stt, KeyboardErrorCatalog.noAudio)
-        updateUI()
-        return
-      }
-      wav = buildWavData(pcm: sttFullRecording, sampleRate: 16000)
-      sttFullRecording = Data()
+    guard let wav = sttRecordedWav else {
+      showToolbarError(.stt, KeyboardErrorCatalog.noAudio)
+      updateUI()
+      return
     }
 
     let serviceModel = KeyboardLanguageCatalog.resolveStt(
@@ -9100,71 +9074,82 @@ class KeyboardViewController: UIInputViewController {
     }.resume()
   }
 
-  private func startAudioCapture() throws {
-    stopAudioCapture()
-    sttAudioQueue.sync { self.sttFullRecording.removeAll(keepingCapacity: true) }
-    let session = AVAudioSession.sharedInstance()
-    try session.setCategory(.record, mode: .measurement, options: [.duckOthers])
-    try session.setPreferredSampleRate(16000)
-    try session.setActive(true)
-    let engine = AVAudioEngine()
-    let input = engine.inputNode
-    let inFmt = input.outputFormat(forBus: 0)
-    guard inFmt.channelCount > 0 else {
-      throw NSError(
-        domain: "HypaKeyboardSTT", code: 1,
-        userInfo: [NSLocalizedDescriptionKey: "No microphone input channel"])
-    }
-    guard
-      let outFmt = AVAudioFormat(
-        commonFormat: .pcmFormatInt16, sampleRate: 16000, channels: 1, interleaved: true),
-      let conv = AVAudioConverter(from: inFmt, to: outFmt)
-    else {
-      throw NSError(
-        domain: "HypaKeyboardSTT", code: 2,
-        userInfo: [NSLocalizedDescriptionKey: "Unable to configure audio converter"])
-    }
-    input.installTap(onBus: 0, bufferSize: 2048, format: inFmt) { [weak self] buf, _ in
-      self?.handleAudioBuffer(buf, converter: conv, outputFormat: outFmt)
-    }
-    sttAudioEngine = engine
-    engine.prepare()
-    try engine.start()
+  private var appMicFileURL: URL? {
+    FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupId)?
+      .appendingPathComponent(Self.micFileName)
   }
 
-  private func handleAudioBuffer(
-    _ buf: AVAudioPCMBuffer, converter: AVAudioConverter, outputFormat: AVAudioFormat
-  ) {
-    let ratio = outputFormat.sampleRate / buf.format.sampleRate
-    let capacity = AVAudioFrameCount(Double(buf.frameLength) * ratio) + 1
-    guard let converted = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else {
+  private func postMicNotification(_ name: String) {
+    CFNotificationCenterPostNotification(
+      CFNotificationCenterGetDarwinNotifyCenter(), CFNotificationName(name as CFString), nil, nil,
+      true)
+  }
+
+  /// Starts recording in the Hypa app: straight away if its mic is still warm,
+  /// otherwise by opening the app, which keeps recording once the user switches back.
+  private func startAppMic(owner: String, onFailure: @escaping () -> Void) {
+    let defaults = keyboardSharedDefaults(reason: "startAppMic").defaults
+    if let url = appMicFileURL { try? FileManager.default.removeItem(at: url) }
+    defaults.set(owner, forKey: Self.micOwnerKey)
+    defaults.set(Date().timeIntervalSince1970, forKey: Self.micStartedAtKey)
+    if Date().timeIntervalSince1970 - defaults.double(forKey: Self.micHeartbeatKey) < 5 {
+      postMicNotification(Self.micStartNotification)
       return
     }
-    var fed = false
-    var err: NSError?
-    let status = converter.convert(to: converted, error: &err) { _, outStatus in
-      if fed {
-        outStatus.pointee = .noDataNow
-        return nil
-      }
-      fed = true
-      outStatus.pointee = .haveData
-      return buf
+    // A new `at` per tap, so an already-open listening page starts again.
+    let link = "hypaintelligence://keyboard-mic?at=\(Int(Date().timeIntervalSince1970 * 1000))"
+    openFirstAvailableHostURL([URL(string: link)!][...]) {
+      [weak self] in
+      self?.cancelAppMic()
+      onFailure()
     }
-    guard status != .error, converted.frameLength > 0, err == nil,
-      let ch = converted.int16ChannelData
-    else { return }
-    let data = Data(bytes: ch[0], count: Int(converted.frameLength) * MemoryLayout<Int16>.size)
-    sttAudioQueue.async { [weak self] in self?.sttFullRecording.append(data) }
   }
 
-  private func stopAudioCapture() {
-    if let engine = sttAudioEngine {
-      engine.inputNode.removeTap(onBus: 0)
-      engine.stop()
+  /// Stops the app's recording and hands back its 16 kHz mono PCM, or nil if the app never answered.
+  private func stopAppMic(_ done: @escaping (Data?) -> Void) {
+    keyboardSharedDefaults(reason: "stopAppMic").defaults.removeObject(forKey: Self.micOwnerKey)
+    postMicNotification(Self.micStopNotification)
+    waitForAppMicFile(attempts: 50, done)
+  }
+
+  private func cancelAppMic() {
+    keyboardSharedDefaults(reason: "cancelAppMic").defaults.removeObject(forKey: Self.micOwnerKey)
+    postMicNotification(Self.micStopNotification)
+  }
+
+  private func waitForAppMicFile(attempts: Int, _ done: @escaping (Data?) -> Void) {
+    if let url = appMicFileURL, let data = try? Data(contentsOf: url) {
+      try? FileManager.default.removeItem(at: url)
+      return done(data)
     }
-    sttAudioEngine = nil
-    deactivateAudioSession()
+    guard attempts > 0 else { return done(nil) }
+    DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+      self?.waitForAppMicFile(attempts: attempts - 1, done)
+    }
+  }
+
+  /// A recording started from the keyboard survives the trip to the app and back
+  /// (which recreates or resets this controller), so pick it up again.
+  private func resumeAppMic() {
+    let defaults = keyboardSharedDefaults(reason: "resumeAppMic").defaults
+    guard hasFullAccess, let owner = defaults.string(forKey: Self.micOwnerKey) else { return }
+    let startedAt = Date(timeIntervalSince1970: defaults.double(forKey: Self.micStartedAtKey))
+    // No fresh heartbeat means the app never started (or dropped) the recording.
+    let heartbeat = defaults.double(forKey: Self.micHeartbeatKey)
+    guard Date().timeIntervalSince(startedAt) < 5 * 60,
+      Date().timeIntervalSince1970 - heartbeat < 5
+    else {
+      return defaults.removeObject(forKey: Self.micOwnerKey)
+    }
+    if owner == "ask" {
+      resetAsk()
+      featureMode = .ask
+      beginAskRecording(startedAt: startedAt)
+    } else {
+      featureMode = .stt
+      isSttListening = true
+      startSttPulse()
+    }
   }
 
   private func commitSttTranscript(_ transcript: String) {

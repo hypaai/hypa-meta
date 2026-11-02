@@ -126,7 +126,8 @@ export function useAgentChat(initialChatId?: string, resetKey?: string) {
       attachments: images.length ? images.map((image) => ({ data: image.data!, mime: image.mime })) : undefined,
       ...(audio ? {
         audio, audioType: 'base64' as const,
-        ...(settings?.sttProvider && settings?.sttModel ? { asr: { provider: settings.sttProvider, model: settings.sttModel } } : {}),
+        // "auto" isn't a model; without `asr` the API picks one.
+        ...(settings?.sttProvider && settings?.sttModel && settings.sttModel !== 'auto' ? { asr:{ provider: settings.sttProvider, model: settings.sttModel } } : {}),
       } : {}),
     };
     let reply: ChatMessage = { id, role: 'assistant', content: '', status: 'pending', requestId };

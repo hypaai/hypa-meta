@@ -10,6 +10,7 @@ interface Tool {
   alt: string;
   title: string;
   description: string;
+  /** A cropped capture of the feature, or a looping clip (.mp4). */
   preview: string;
   path?: string;
 }
@@ -20,7 +21,7 @@ const TOOLS: Tool[] = [
     alt: "Hypa Dictionary",
     title: "Dictionary",
     description: "Word of the day, definitions, and native pronunciation.",
-    preview: "Dictionary UI",
+    preview: "/screenshots/dictionary.mp4",
     path: "/dictionary",
   },
   {
@@ -28,7 +29,7 @@ const TOOLS: Tool[] = [
     alt: "Hypa Translate",
     title: "Translate",
     description: "Fast and high-quality translation between world languages.",
-    preview: "Translate UI",
+    preview: "/screenshots/translate.mp4",
     path: "/translate",
   },
   {
@@ -36,7 +37,7 @@ const TOOLS: Tool[] = [
     alt: "Hypa Chat",
     title: "Chat",
     description: "Ask anything in your language. Hypa translates, speaks and reads for you.",
-    preview: "Chat UI",
+    preview: "/screenshots/keyboard-chat.mp4",
     path: "/chat",
   },
   {
@@ -44,7 +45,7 @@ const TOOLS: Tool[] = [
     alt: "Hypa Keyboard",
     title: "AI Keyboard",
     description: "Type seamlessly in your native characters with our keyboard.",
-    preview: "Keyboard UI",
+    preview: "/screenshots/keyboard.mp4",
   },
 ];
 
@@ -61,8 +62,12 @@ function ToolCard({ tool, theme }: { tool: Tool; theme?: string }) {
       <p className="mb-8 flex-1 text-xs md:text-sm leading-relaxed text-[var(--muted-foreground)]">
         {tool.description}
       </p>
-      <div className="relative mt-auto flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-t-xl border border-[var(--border)] border-b-0 bg-[var(--muted)]/40">
-        <span className="text-sm font-medium text-[var(--muted-foreground)]">{tool.preview}</span>
+      <div className="relative mt-auto flex aspect-[4/3] w-full items-center justify-center overflow-hidden rounded-t-xl border border-[var(--border)] border-b-0 bg-black">
+        {tool.preview.endsWith(".mp4") ? (
+          <video autoPlay loop muted playsInline aria-label={tool.alt} className="h-full w-full object-contain" src={tool.preview} />
+        ) : (
+          <img alt={tool.alt} className="h-full w-full object-contain" loading="lazy" src={tool.preview} />
+        )}
       </div>
     </>
   );

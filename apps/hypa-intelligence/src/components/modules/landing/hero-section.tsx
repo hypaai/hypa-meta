@@ -35,17 +35,17 @@ export default function HeroSection() {
           <GetAppButtons />
         </motion.div>
 
-        {/* Mockup Image Placeholder */}
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="relative mt-12 flex aspect-[1/2] w-full max-w-[280px] items-center justify-center overflow-hidden rounded-[2.5rem] border-[10px] border-[#1C1C1E] bg-[var(--background)] shadow-2xl md:mt-16 md:max-w-[320px] md:border-[12px] dark:border-[#2C2C2E]"
+          className="relative mt-12 w-full max-w-[280px] overflow-hidden rounded-[2.5rem] border-[10px] border-[#1C1C1E] bg-[#0a0a0a] pt-7 pb-4 shadow-2xl md:mt-16 md:max-w-[320px] md:border-[12px] dark:border-[#2C2C2E]"
           initial={{ opacity: 0, y: 40 }}
           transition={{ duration: 0.7, delay: 0.3 }}
         >
-          <div className="absolute inset-0 bg-gradient-to-br from-transparent to-black/5 dark:to-white/5" />
-          <p className="px-4 text-sm font-medium text-[var(--muted-foreground)]">
-            Globe UI Mockup
-          </p>
+          <img
+            alt="Hypa Chat on Android with conversation starters"
+            className="block h-auto w-full"
+            src="/screenshots/app-chat.jpg"
+          />
         </motion.div>
       </div>
     </section>

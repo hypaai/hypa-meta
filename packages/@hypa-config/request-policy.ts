@@ -17,3 +17,8 @@ export const AUTO_ROUTING_TIMEOUTS = {
   ASR: { attemptMs: 150_000, deadlineMs: 450_000 },
   TTS: { attemptMs: 150_000, deadlineMs: 450_000 },
 } as const;
+
+/** Serving limits observed from the deployment, which can be below the weights' context size. */
+export const DEPLOYMENT_CONTEXT_WINDOWS: Readonly<Record<string, number>> = {
+  "https://hb451scbmvzenc8e.endpoints.huggingface.cloud/v1/chat/completions": 2048,
+};

@@ -24,6 +24,13 @@
     "./referral": "./referral.ts",
     "./request-policy": "./request-policy.ts",
     "./settings-resolvers": "./settings-resolvers.ts",
-    "./json/chat-privacy.json": "./json/chat-privacy.json"
+    "./json/chat-privacy.json": "./json/chat-privacy.json",
+    "./analytics": "./analytics.ts",
+    "./analytics-client": "./analytics-client.ts",
+    "./voice-avatar": "./voice-avatar.ts",
+    "./voice-language-filter": "./voice-language-filter.ts",
+    "./json/*.json": "./json/*.json",
+    "./json/*": "./json/*.json",
+    "./socials": "./socials.ts"
   }
 }

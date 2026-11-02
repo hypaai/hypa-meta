@@ -1,0 +1,19 @@
+{
+  "extends": "../../apps/hypa-dictionary-mobile/tsconfig.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "react": ["../../apps/hypa-dictionary-mobile/node_modules/@types/react"],
+      "react/jsx-runtime": [
+        "../../apps/hypa-dictionary-mobile/node_modules/@types/react/jsx-runtime"
+      ],
+      "react/jsx-dev-runtime": [
+        "../../apps/hypa-dictionary-mobile/node_modules/@types/react/jsx-dev-runtime"
+      ]
+    },
+    "types": ["react", "react-native"]
+  },
+  "include": ["src/mobile/**/*.ts", "src/mobile/**/*.tsx", "src/shared/**/*.ts"]
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@hypa/ui",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "yarn check-types",
+    "check-types": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.mobile.json --noEmit"
+  },
+  "exports": {
+    ".": "./src/shared/index.ts",
+    "./web": "./src/web/index.ts",
+    "./mobile": "./src/mobile/index.ts",
+    "./shared": "./src/shared/index.ts"
+  },
+  "dependencies": {
+    "@hypa/config": "workspace:*",
+    "@radix-ui/react-dropdown-menu": "^2.1.16"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-native": ">=0.81"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3"
+  }
+}

@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
-import { AudioModule, RecordingPresets, setAudioModeAsync, useAudioRecorder } from "expo-audio";
+import {
+  AudioModule,
+  RecordingPresets,
+  setAudioModeAsync,
+  useAudioRecorder,
+} from "expo-audio";
 import { File } from "expo-file-system";
 
 import { useToast } from "@/lib/toast";
@@ -8,7 +13,8 @@ import { speechToText } from "@/lib/product-api";
 
 const AUDIO_MAX_DURATION = 30;
 
-export type RecordingState = "idle" | "starting" | "recording" | "stopping" | "transcribing";
+export type RecordingState =
+  "idle" | "starting" | "recording" | "stopping" | "transcribing";
 
 type UseSpeechRecorderOptions = {
   asrModel: string;
@@ -39,12 +45,18 @@ export const useSpeechRecorder = ({
   const mounted = useRef(true);
   const starting = useRef(false);
 
-  const isRecording = recordingState === "starting" || recordingState === "recording";
+  const isRecording =
+    recordingState === "starting" || recordingState === "recording";
   const isRecordingActive = recordingState === "recording";
-  const isBusy = recordingState === "stopping" || recordingState === "transcribing";
+  const isBusy =
+    recordingState === "stopping" || recordingState === "transcribing";
 
   const sttMutation = useMutation({
-    mutationFn: ({ epoch: _epoch, ...params }: Parameters<typeof speechToText>[0] & { epoch: number }) => speechToText(params),
+    mutationFn: ({
+      epoch: _epoch,
+      ...params
+    }: Parameters<typeof speechToText>[0] & { epoch: number }) =>
+      speechToText(params),
     onSuccess: (data, variables) => {
       if (!mounted.current || variables.epoch !== generation.current) return;
       const textResult = data.text.trim();
@@ -56,16 +68,18 @@ export const useSpeechRecorder = ({
       onNoTranscript?.();
       toast.showError(
         "Transcription failed",
-        error instanceof Error ? error.message : "Please try again."
+        error instanceof Error ? error.message : "Please try again.",
       );
     },
     onSettled: (_data, _error, variables) => {
-      if (mounted.current && variables.epoch === generation.current) setRecordingState("idle");
+      if (mounted.current && variables.epoch === generation.current)
+        setRecordingState("idle");
     },
   });
 
   const startRecording = useCallback(async () => {
-    if (starting.current || recordingState !== "idle" || sttMutation.isPending) return false;
+    if (starting.current || recordingState !== "idle" || sttMutation.isPending)
+      return false;
     starting.current = true;
     const epoch = ++generation.current;
     try {
@@ -78,14 +92,20 @@ export const useSpeechRecorder = ({
         setRecordingState("idle");
         toast.showError(
           "Microphone required",
-          "Microphone permission is required to record audio."
+          "Microphone permission is required to record audio.",
         );
         return false;
       }
-      await setAudioModeAsync({ playsInSilentMode: true, allowsRecording: true });
+      await setAudioModeAsync({
+        playsInSilentMode: true,
+        allowsRecording: true,
+      });
       if (!mounted.current || epoch !== generation.current) return false;
       await recorder.prepareToRecordAsync();
-      if (!mounted.current || epoch !== generation.current) { await recorder.stop().catch(() => {}); return false; }
+      if (!mounted.current || epoch !== generation.current) {
+        await recorder.stop().catch(() => {});
+        return false;
+      }
       recorder.record();
       setRecordingSeconds(0);
       setRecordingState("recording");
@@ -95,7 +115,7 @@ export const useSpeechRecorder = ({
       setRecordingState("idle");
       toast.showError(
         "Recording failed",
-        error instanceof Error ? error.message : "Unable to start recording."
+        error instanceof Error ? error.message : "Unable to start recording.",
       );
       return false;
     } finally {
@@ -108,17 +128,28 @@ export const useSpeechRecorder = ({
       if (sttMutation.isPending) return;
       try {
         const audio = await new File(uri).base64();
-        if (mounted.current && epoch === generation.current) sttMutation.mutate({ audio, model: asrModel, provider, epoch });
+        if (mounted.current && epoch === generation.current)
+          sttMutation.mutate({ audio, model: asrModel, provider, epoch });
       } catch (error) {
-        if (mounted.current && epoch === generation.current) { setRecordingState('idle'); onNoTranscript?.(); toast.showError('Transcription failed', error instanceof Error ? error.message : 'Unable to read recording.'); }
+        if (mounted.current && epoch === generation.current) {
+          setRecordingState("idle");
+          onNoTranscript?.();
+          toast.showError(
+            "Transcription failed",
+            error instanceof Error
+              ? error.message
+              : "Unable to read recording.",
+          );
+        }
       }
     },
-    [asrModel, provider, sttMutation, toast]
+    [asrModel, provider, sttMutation, toast],
   );
 
   const stopRecording = useCallback(
     async (showLimitToast = false) => {
-      if (isStoppingRecordingRef.current || recordingState !== "recording") return;
+      if (isStoppingRecordingRef.current || recordingState !== "recording")
+        return;
       isStoppingRecordingRef.current = true;
       const epoch = generation.current;
       setRecordingState("stopping");
@@ -148,24 +179,35 @@ export const useSpeechRecorder = ({
         onNoTranscript?.();
         toast.showError(
           "Recording failed",
-          error instanceof Error ? error.message : "Unable to stop recording."
+          error instanceof Error ? error.message : "Unable to stop recording.",
         );
       } finally {
         isStoppingRecordingRef.current = false;
       }
     },
-    [recorder, recordingState, runWithConsent, toast, transcribeRecordingUri]
+    [recorder, recordingState, runWithConsent, toast, transcribeRecordingUri],
   );
 
   const cancelRecording = useCallback(async () => {
     generation.current++;
-    if (recordingTimerRef.current) { clearInterval(recordingTimerRef.current); recordingTimerRef.current = null; }
-    if (recorder.isRecording) await recorder.stop().catch(() => {});
-    if (mounted.current) { setRecordingState('idle'); setRecordingSeconds(0); }
+    if (recordingTimerRef.current) {
+      clearInterval(recordingTimerRef.current);
+      recordingTimerRef.current = null;
+    }
+    try {
+      if (recorder.isRecording) await recorder.stop();
+    } catch {}
+    if (mounted.current) {
+      setRecordingState("idle");
+      setRecordingSeconds(0);
+    }
   }, [recorder]);
   useEffect(() => {
     mounted.current = true;
-    return () => { mounted.current = false; void cancelRecording(); };
+    return () => {
+      mounted.current = false;
+      void cancelRecording();
+    };
   }, [cancelRecording]);
 
   useEffect(() => {

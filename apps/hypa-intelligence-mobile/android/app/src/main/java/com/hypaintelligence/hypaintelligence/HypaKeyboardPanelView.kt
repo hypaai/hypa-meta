@@ -238,6 +238,7 @@ class HypaKeyboardPanelView(
     private const val SEARCH_TOOLBAR_HEIGHT_DP = 120
     private const val HAPTIC_THROTTLE_MS = 35L
     private const val MAX_STT_RECORD_MS = 30_000L
+    private const val ASK_STATUS_VISIBLE_MS = 2_000L
     private const val TTS_READ_TIMEOUT_SECONDS = 120L
     private const val MAX_EDITOR_TEXT_CHARS = 20_000
 
@@ -2970,6 +2971,9 @@ class HypaKeyboardPanelView(
   /** Earlier turns of this Ask session, sent so Hypa can follow up on its own question. */
   private val askHistory = mutableListOf<Pair<String, String>>()
   private var askReplySuggestions: List<String> = emptyList()
+  /** "requestId:outcome" whose status line ("Inserted", "Original restored"…) has timed out. */
+  private var askStatusFadedKey: String? = null
+  private var askStatusTimerKey: String? = null
   private var askRecorder: MediaRecorder? = null
   private var askRecordFile: java.io.File? = null
   private var askRecordStartMs = 0L
@@ -3095,7 +3099,8 @@ class HypaKeyboardPanelView(
         .put("surface", "keyboard")
         .put("language", ttsLanguageName())
     if (context.length() > 0) payload.put("context", context)
-    if (askHistory.isNotEmpty()) {
+    // Signed in, the server keeps the thread; it rejects client history then.
+    if (askHistory.isNotEmpty() && apiToken.isBlank()) {
       payload.put(
         "history",
         JSONArray(askHistory.takeLast(10).map { (role, content) -> JSONObject().put("role", role).put("content", content) }),
@@ -3378,9 +3383,17 @@ class HypaKeyboardPanelView(
   }
 
   private fun openAskInHypa() {
-    val path = askTurn?.chatId?.let { "hypaintelligence://chat/$it" } ?: "hypaintelligence://chat"
+    // Signed in: open the saved keyboard thread (full context). Otherwise a new chat with the message typed in.
+    val turn = askTurn
+    val draft = askInput.ifBlank { turn?.request.orEmpty() }
+    val uri =
+      turn?.chatId?.let { android.net.Uri.parse("hypaintelligence://chat/$it") }
+        ?: android.net.Uri.parse("hypaintelligence://chat").buildUpon()
+          .appendQueryParameter("new", System.currentTimeMillis().toString())
+          .apply { if (draft.isNotBlank()) appendQueryParameter("draft", draft) }
+          .build()
     startHostApp(
-      android.content.Intent(android.content.Intent.ACTION_VIEW, android.net.Uri.parse(path))
+      android.content.Intent(android.content.Intent.ACTION_VIEW, uri)
         .setPackage(context.packageName)
         .addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK),
     )
@@ -3692,7 +3705,21 @@ class HypaKeyboardPanelView(
       return row
     }
 
-    val undo = if (askCanUndo) listOf(askAction("Undo", label) { undoAsk() }) else emptyList()
+    val reply = askAction("Reply", label) { replyToAsk() }
+    val undo = (if (askCanUndo) listOf(askAction("Undo", label) { undoAsk() }) else emptyList()) + reply
+    // Static status lines show briefly, then clear so only the actions remain.
+    val statusKey = "${turn.requestId}:$outcome"
+    val statusFaded = askStatusFadedKey == statusKey
+    if (!statusFaded && askStatusTimerKey != statusKey) {
+      askStatusTimerKey = statusKey
+      mainHandler.postDelayed({
+        if (askTurn?.let { "${it.requestId}:${it.outcome}" } == statusKey) {
+          askStatusFadedKey = statusKey
+          refreshAsk()
+        }
+      }, ASK_STATUS_VISIBLE_MS)
+    }
+    fun status(value: String) = if (statusFaded) "" else value
     val edited = outcome == AskOutcome.REPLACED || outcome == AskOutcome.INSERTED
     val doneTitle = if (outcome == AskOutcome.INSERTED) "Inserted" else "Done"
     val firstLine = turn.text.lineSequence().firstOrNull().orEmpty()
@@ -3712,20 +3739,26 @@ class HypaKeyboardPanelView(
             undo + askCircle(R.drawable.ic_audio_play, "Play", Color.TRANSPARENT, label) { resumeTts(); refreshAsk() },
           )
         outcome == AskOutcome.REPLACED || outcome == AskOutcome.INSERTED ->
-          Triple(askGlyph(R.drawable.ic_key_check, label), doneTitle, undo)
+          Triple(if (statusFaded) null else askGlyph(R.drawable.ic_key_check, label), status(doneTitle), undo)
         outcome == AskOutcome.RESTORED ->
-          Triple(askGlyph(R.drawable.ic_audio_undo, label), "Original restored", listOf(askAction("Ask", label) { startNewAsk() }))
+          Triple(
+            if (statusFaded) null else askGlyph(R.drawable.ic_audio_undo, label),
+            status("Original restored"),
+            listOf(reply, askAction("Ask", label) { startNewAsk() }),
+          )
         outcome == AskOutcome.SHOWN ->
           Triple(
             null,
             firstLine,
-            listOf(
-              if (askWantsReply) askAction("Reply", label) { replyToAsk() }
-              else askAction(if (askCopied) "Copied" else "Copy", label) { copyAskResult() },
-            ),
+            if (askWantsReply) listOf(reply)
+            else listOf(askAction(if (askCopied) "Copied" else "Copy", label) { copyAskResult() }, reply),
           )
         outcome == AskOutcome.DRAFT_CHANGED ->
-          Triple(null, "Draft changed · result saved", listOf(askAction(if (askCopied) "Copied" else "Copy", label) { copyAskResult() }))
+          Triple(
+            null,
+            status("Draft changed · result saved"),
+            listOf(askAction(if (askCopied) "Copied" else "Copy", label) { copyAskResult() }, reply),
+          )
         else ->
           Triple(
             null,
@@ -3850,7 +3883,7 @@ class HypaKeyboardPanelView(
         gravity = Gravity.CENTER_VERTICAL
         layoutParams = LayoutParams(LayoutParams.MATCH_PARENT, dp(40))
         if (turn?.text?.isNotEmpty() == true) addView(askAction(if (askCopied) "Copied" else "Copy", label) { copyAskResult() })
-        if (askWantsReply) addView(askAction("Reply", label) { replyToAsk() })
+        if (turn?.outcome != null) addView(askAction("Reply", label) { replyToAsk() })
         if (turn?.speak == true && (hasShareableTts() || turn.audioUrl != null)) {
           addView(askAction("▷ Play", label) { if (hasShareableTts()) resumeTts() else playAskAudio() })
         }

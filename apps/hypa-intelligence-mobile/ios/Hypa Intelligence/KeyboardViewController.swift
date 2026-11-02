@@ -2370,6 +2370,10 @@ class KeyboardViewController: UIInputViewController {
   /// Earlier turns of this Ask session, sent so Hypa can follow up on its own question.
   private var askHistory: [[String: String]] = []
   private var askReplySuggestions: [String] = []
+  /// "requestId:outcome" whose status line ("Inserted", "Original restored"…) has timed out.
+  private var askStatusFadedKey: String?
+  private var askStatusTimerKey: String?
+  private static let askStatusVisibleSeconds = 2.0
 
   private var askNeedsFullAccess: Bool { !hasFullAccess }
 
@@ -2538,7 +2542,9 @@ class KeyboardViewController: UIInputViewController {
         "language": self.resolvedTtsLanguage().name,
       ]
       if !context.isEmpty { payload["context"] = context }
-      if !self.askHistory.isEmpty { payload["history"] = Array(self.askHistory.suffix(10)) }
+      // Signed in, the server keeps the thread; it rejects client history then.
+      let signedIn = !self.settings.token.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+      if !signedIn, !self.askHistory.isEmpty { payload["history"] = Array(self.askHistory.suffix(10)) }
       if let audio {
         let stt = KeyboardLanguageCatalog.resolveStt(
           selectedProvider: self.settings.sttProvider, selectedModel: self.settings.sttModel)
@@ -2847,8 +2853,15 @@ class KeyboardViewController: UIInputViewController {
   }
 
   private func openAskInHypa() {
-    let paths = [askTurn?.chatId.map { "hypaintelligence://chat/\($0)" }, "hypaintelligence://chat"]
-    openFirstAvailableHostURL(paths.compactMap { $0.flatMap(URL.init(string:)) }[...])
+    // Signed in: open the saved keyboard thread (full context). Otherwise a new chat with the message typed in.
+    if let chatId = askTurn?.chatId, let url = URL(string: "hypaintelligence://chat/\(chatId)") {
+      return openFirstAvailableHostURL([url][...])
+    }
+    var components = URLComponents(string: "hypaintelligence://chat")!
+    let draft = askInput.isEmpty ? askTurn?.request ?? "" : askInput
+    components.queryItems = [URLQueryItem(name: "new", value: String(Int(Date().timeIntervalSince1970 * 1000)))]
+      + (draft.isEmpty ? [] : [URLQueryItem(name: "draft", value: draft)])
+    openFirstAvailableHostURL([components.url!][...])
   }
 
   private func startAskRecording() {
@@ -2930,8 +2943,25 @@ class KeyboardViewController: UIInputViewController {
       return makeAskRow(icon: makeAskSpinner(), title: turn.activity, trailing: [])
     }
 
-    let undo = askCanUndo ? [makeAskPill("Undo") { [weak self] in self?.undoAsk() }] : []
+    let reply = makeAskPill("Reply") { [weak self] in self?.replyToAsk() }
+    let undo = (askCanUndo ? [makeAskPill("Undo") { [weak self] in self?.undoAsk() }] : []) + [reply]
     let edited = outcome == .replaced || outcome == .inserted
+    // Static status lines show briefly, then clear so only the actions remain.
+    let statusKey = "\(turn.requestId):\(outcome)"
+    let statusFaded = askStatusFadedKey == statusKey
+    if !statusFaded && askStatusTimerKey != statusKey {
+      askStatusTimerKey = statusKey
+      DispatchQueue.main.asyncAfter(deadline: .now() + Self.askStatusVisibleSeconds) { [weak self] in
+        guard let self, let current = self.askTurn, let currentOutcome = current.outcome,
+          "\(current.requestId):\(currentOutcome)" == statusKey
+        else { return }
+        self.askStatusFadedKey = statusKey
+        self.refreshAsk()
+      }
+    }
+    func status(_ icon: String, _ title: String) -> (UIView?, String) {
+      statusFaded ? (nil, "") : (makeAskIcon(icon), title)
+    }
     if turn.speak && isTtsLoading {
       return makeAskRow(icon: makeAskSpinner(), title: "Preparing audio…", trailing: undo)
     }
@@ -2959,22 +2989,22 @@ class KeyboardViewController: UIInputViewController {
     }
 
     switch outcome {
-    case .replaced:
-      return makeAskRow(icon: makeAskIcon("checkmark"), title: "Done", trailing: undo)
-    case .inserted:
-      return makeAskRow(icon: makeAskIcon("checkmark"), title: "Inserted", trailing: undo)
+    case .replaced, .inserted:
+      let (icon, title) = status("checkmark", outcome == .inserted ? "Inserted" : "Done")
+      return makeAskRow(icon: icon, title: title, trailing: undo)
     case .restored:
+      let (icon, title) = status("arrow.uturn.backward", "Original restored")
       return makeAskRow(
-        icon: makeAskIcon("arrow.uturn.backward"), title: "Original restored",
-        trailing: [makeAskPill("Ask") { [weak self] in self?.startNewAsk() }])
+        icon: icon, title: title,
+        trailing: [reply, makeAskPill("Ask") { [weak self] in self?.startNewAsk() }])
     case .shown:
       let line = turn.text.components(separatedBy: .newlines).first ?? turn.text
-      let action = askWantsReply
-        ? makeAskPill("Reply") { [weak self] in self?.replyToAsk() } : makeAskCopyButton()
-      return makeAskRow(icon: nil, title: line, trailing: [action])
+      return makeAskRow(
+        icon: nil, title: line, trailing: askWantsReply ? [reply] : [makeAskCopyButton(), reply])
     case .draftChanged:
       return makeAskRow(
-        icon: nil, title: "Draft changed · result saved", trailing: [makeAskCopyButton()])
+        icon: nil, title: statusFaded ? "" : "Draft changed · result saved",
+        trailing: [makeAskCopyButton(), reply])
     case .recovered:
       let line = turn.text.components(separatedBy: .newlines).first ?? turn.text
       return makeAskRow(
@@ -3390,7 +3420,7 @@ class KeyboardViewController: UIInputViewController {
     actions.axis = .horizontal
     actions.distribution = .equalSpacing
     if turn?.text.isEmpty == false { actions.addArrangedSubview(makeAskCopyButton()) }
-    if askWantsReply {
+    if turn?.outcome != nil {
       actions.addArrangedSubview(makeAskPill("Reply") { [weak self] in self?.replyToAsk() })
     }
     if turn?.speak == true, ttsAudioData != nil || turn?.audioURL != nil {

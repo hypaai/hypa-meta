@@ -98,6 +98,21 @@ for (const models of Object.values(ttsProviderMap)) {
   }
 }
 
+export type SharedLanguageCatalogEntry = SharedLanguageInfo & {
+  voices: string[];
+};
+
+export const LANGUAGE_CATALOG: SharedLanguageCatalogEntry[] = Object.values(
+  LANGUAGE_INFO_BY_NAME,
+)
+  .map((language) => ({
+    ...language,
+    voices: voicesByLanguageName[language.name.toLowerCase()] ?? [],
+  }))
+  .sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: "base" }),
+  );
+
 export const LEGACY_LANGUAGE_CODES: Record<string, string> = {
   tiv: "tv",
   ann: "an",
@@ -108,11 +123,3 @@ export const LEGACY_LANGUAGE_CODES: Record<string, string> = {
 };
 
 export const KEYBOARD_LAYOUT_READY_CODES = ["en", "yo", "igl", "ig", "ha"] as const;
-
-export const LANGUAGE_CATALOG = Object.values(languageInfoByName)
-  .map((info) => ({
-    code: info.code,
-    name: info.name,
-    voices: voicesByLanguageName[info.name.toLowerCase()] ?? [],
-  }))
-  .sort((a, b) => a.name.localeCompare(b.name));

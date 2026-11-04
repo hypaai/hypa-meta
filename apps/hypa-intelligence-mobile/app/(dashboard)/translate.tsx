@@ -829,6 +829,13 @@ const Entry = () => {
     ]
   );
 
+  const handleLensPress = () => {
+    runWithConsent(() => router.push({ pathname: "/lens", params: {
+      page_source: "translate",
+      use_agent: "false",
+    } }))
+  }
+
   return (
     <Body
       showBackground={false}
@@ -930,6 +937,7 @@ const Entry = () => {
               onInputTTS={handleInputTTS}
               onCopySource={copySource}
               onShareRecording={handleShareRecording}
+              onLensPress={handleLensPress}
             />
           </View>
           <View style={styles.panelSlot}>

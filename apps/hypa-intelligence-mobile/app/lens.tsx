@@ -1,7 +1,7 @@
 import { useIsFocused } from '@react-navigation/native';
 import { isAxiosError } from 'axios';
 import { createAudioPlayer, type AudioPlayer } from 'expo-audio';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { Eraser, Flashlight, FlashlightOff, Pause, Play, Square, Volume2, X } from 'lucide-react-native';
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -19,7 +19,7 @@ import { useTranslationTargetLanguagePresets } from '@/hooks/use-model-languages
 import { LiveLines } from '@/lib/lens/live-lines';
 import { evenThickness, lineShape, type Size } from '@/lib/lens/overlay-geometry';
 import { type PreviewBasis, toPreviewCameraPoint } from '@/lib/lens/frame-points';
-import { LensSocket, LensSocketOffline, LensSocketUnavailable } from '@/lib/lens/lens-socket';
+import { LensSocket, LensSocketOffline, LensSocketUnavailable, type LensTranslationMode } from '@/lib/lens/lens-socket';
 import { trackLines } from '@/lib/lens/stabilize-lines';
 import { StickyOverlay } from '@/lib/lens/sticky-overlay';
 import { PageBlocks, type PageBlock } from '@/lib/lens/page-blocks';
@@ -30,16 +30,22 @@ import { useToast } from '@/lib/toast';
 
 const NO_TEXT_HINT_MS = 1500;
 const MAX_REQUESTS_PER_FRAME = 6;
-const UPRIGHT_BASIS = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }];
+const UPRIGHT_BASIS = [
+  { x: 0, y: 0 },
+  { x: 1, y: 0 },
+  { x: 0, y: 1 },
+];
 
 const isUpperCase = (text: string) => /\p{L}/u.test(text) && text === text.toLocaleUpperCase();
 
 type TrackedLine = FrameLine & { seenAt: number; id: number };
-type TrackedLines = Omit<FrameLines, 'lines'> & { lines: TrackedLine[]; blocks: PageBlock[]; pass: number };
+type TrackedLines = Omit<FrameLines, 'lines'> & {
+  lines: TrackedLine[];
+  blocks: PageBlock[];
+  pass: number;
+};
 
-/** Card padding around the source text, and the largest translation size, in source line heights. */
 const CARD_PAD = 0.12;
-/** Big display text must not get a big margin: padding never exceeds this many points. */
 const MAX_PAD = 5;
 const MAX_FONT = 0.85;
 
@@ -55,6 +61,8 @@ function useAppActive() {
 }
 
 export default function LensScreen() {
+  const searchParams = useLocalSearchParams();
+  const { use_agent } = searchParams;
   const insets = useSafeAreaInsets();
   const toast = useToast();
   const isFocused = useIsFocused();
@@ -65,9 +73,7 @@ export default function LensScreen() {
   const { languages, models, settings, resolvePlaybackVoice, targetLanguageVoices } = useSettings();
   const targetLanguages = useTranslationTargetLanguagePresets();
 
-  const [targetLang, setTargetLang] = useState(
-    languages.targetLang || targetLanguages[0]?.name || 'French'
-  );
+  const [targetLang, setTargetLang] = useState(languages.targetLang || targetLanguages[0]?.name || 'French');
   const [paused, setPaused] = useState(false);
   const [torch, setTorch] = useState(false);
   const [frameLines, setFrameLines] = useState<TrackedLines | null>(null);
@@ -92,6 +98,18 @@ export default function LensScreen() {
     provider: settings?.assistantProvider ?? 'meta',
     model: settings?.assistantModel ?? 'muse-spark-1.3',
   };
+  const translationModeRef = useRef<LensTranslationMode>({
+    type: 'agent',
+    ...agentRef.current,
+  });
+  translationModeRef.current =
+    use_agent === 'false'
+      ? {
+          type: 'mt',
+          provider: settings?.translationProvider ?? 'auto',
+          model: models.translationModel ?? 'auto',
+        }
+      : { type: 'agent', ...agentRef.current };
   const targetRef = useRef(targetLang);
   targetRef.current = targetLang;
   const playerRef = useRef<AudioPlayer | null>(null);
@@ -117,17 +135,25 @@ export default function LensScreen() {
       socket.close();
       stopSpeech();
     },
-    [abort, socket, stopSpeech]
+    [abort, socket, stopSpeech],
   );
 
   const translate = useCallback(
     (due: string[], target: string) => {
       for (const line of due) {
         socket
-          .translate(line, target, agentRef.current)
+          .translate(line, target, translationModeRef.current)
           .catch((error) => {
             if (error instanceof LensSocketUnavailable) {
-              return translateLensLine({ text: line, targetLang: target, signal: abort.signal });
+              const mode = translationModeRef.current;
+              return translateLensLine({
+                text: line,
+                targetLang: target,
+                ...(mode.type === 'mt'
+                  ? { provider: mode.provider, translationModel: mode.model }
+                  : {}),
+                signal: abort.signal,
+              });
             }
             throw error;
           })
@@ -146,7 +172,7 @@ export default function LensScreen() {
           });
       }
     },
-    [abort, liveLines, socket]
+    [abort, liveLines, socket],
   );
 
   const onLines = useCallback(
@@ -155,13 +181,18 @@ export default function LensScreen() {
       const tracked = trackLines(trackedRef.current, result.lines, now);
       trackedRef.current = tracked;
       const blocks = pages.build(tracked, result.image);
-      setFrameLines({ ...result, lines: tracked, blocks, pass: ++passRef.current });
+      setFrameLines({
+        ...result,
+        lines: tracked,
+        blocks,
+        pass: ++passRef.current,
+      });
       if (result.lines.length) lastTextAt.current = now;
       setNoText(now - lastTextAt.current > NO_TEXT_HINT_MS);
       const due = liveLines.observe(segmentTexts(blocks), targetRef.current, now, MAX_REQUESTS_PER_FRAME);
       if (due.length) translate(due, targetRef.current);
     },
-    [liveLines, pages, translate]
+    [liveLines, pages, translate],
   );
 
   const { frameOutput, motion } = useLensFrames({ paused, onLines });
@@ -172,7 +203,7 @@ export default function LensScreen() {
     if (!previewBasis || !viewSize || !camera.current) return null;
     try {
       return UPRIGHT_BASIS.map((point) =>
-        camera.current!.convertCameraPointToViewPoint(toPreviewCameraPoint(point, previewBasis))
+        camera.current!.convertCameraPointToViewPoint(toPreviewCameraPoint(point, previewBasis)),
       ) as PreviewBasis;
     } catch {
       return null;
@@ -264,7 +295,10 @@ export default function LensScreen() {
       pending.push(() => {
         const shared = sharedFont(translated.map((entry) => entry.fit));
         for (const { card, fit } of translated) {
-          cards.push({ ...card, fontSize: shared === undefined ? fit : Math.min(fit, shared) });
+          cards.push({
+            ...card,
+            fontSize: shared === undefined ? fit : Math.min(fit, shared),
+          });
         }
       });
     }
@@ -272,15 +306,16 @@ export default function LensScreen() {
       targetLang,
       frameLines.lines,
       live,
-      blocks.flatMap((block) => block.segments.map((segment) => segment.key))
+      blocks.flatMap((block) => block.segments.map((segment) => segment.key)),
     );
     for (const place of pending) place();
     return sticky.settle(cards, frameLines.pass, Date.now());
   }, [frameLines, liveLines, sticky, targetLang, translationsVersion, viewBasis]);
 
   const spokenText = useMemo(
-    () => overlay.flatMap((card) => card.segments.flatMap((segment) => (segment.text ? [segment.text] : []))).join('\n'),
-    [overlay]
+    () =>
+      overlay.flatMap((card) => card.segments.flatMap((segment) => (segment.text ? [segment.text] : []))).join('\n'),
+    [overlay],
   );
   const voice = useMemo(() => {
     const code = languageNameToCode(targetLang) || targetLang;
@@ -305,7 +340,9 @@ export default function LensScreen() {
         provider: settings?.ttsProvider,
       });
       if (playbackEpoch.current !== epoch) return;
-      const player = createAudioPlayer({ uri: `data:${audio.audio_type};base64,${audio.audio_b64}` });
+      const player = createAudioPlayer({
+        uri: `data:${audio.audio_type};base64,${audio.audio_b64}`,
+      });
       playerRef.current = player;
       player.addListener('playbackStatusUpdate', (status) => {
         if (playbackEpoch.current !== epoch) return;
@@ -330,7 +367,7 @@ export default function LensScreen() {
         if (due.length) translate(due, next);
       }
     },
-    [frameLines, liveLines, paused, stopSpeech, translate]
+    [frameLines, liveLines, paused, stopSpeech, translate],
   );
 
   const clearOverlay = useCallback(() => {
@@ -444,7 +481,8 @@ export default function LensScreen() {
         <RoundButton
           label={speaking ? 'Stop reading' : 'Read translation aloud'}
           onPress={() => void speak()}
-          disabled={!speaking && (!spokenText || !voice)}>
+          disabled={!speaking && (!spokenText || !voice)}
+        >
           {speaking === 'loading' ? (
             <ActivityIndicator color="#fff" />
           ) : speaking === 'playing' ? (
@@ -478,7 +516,8 @@ function RoundButton({
       accessibilityLabel={label}
       onPress={onPress}
       disabled={disabled}
-      style={[styles.roundButton, disabled && styles.disabled]}>
+      style={[styles.roundButton, disabled && styles.disabled]}
+    >
       {children}
     </Pressable>
   );
@@ -496,9 +535,24 @@ function CloseButton({ onPress, top }: { onPress: () => void; top: number }) {
 
 const styles = StyleSheet.create({
   screen: { flex: 1, backgroundColor: '#000' },
-  centered: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: 32, gap: 12 },
-  title: { color: '#fff', fontFamily: FONTS.main.semiBold, fontSize: 20, textAlign: 'center' },
-  body: { color: '#d4d4d4', fontFamily: FONTS.main.regular, fontSize: 15, textAlign: 'center' },
+  centered: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 32,
+    gap: 12,
+  },
+  title: {
+    color: '#fff',
+    fontFamily: FONTS.main.semiBold,
+    fontSize: 20,
+    textAlign: 'center',
+  },
+  body: {
+    color: '#d4d4d4',
+    fontFamily: FONTS.main.regular,
+    fontSize: 15,
+    textAlign: 'center',
+  },
   primaryButton: {
     marginTop: 8,
     backgroundColor: '#fff',
@@ -506,7 +560,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 22,
     paddingVertical: 12,
   },
-  primaryButtonText: { color: '#111', fontFamily: FONTS.main.semiBold, fontSize: 15 },
+  primaryButtonText: {
+    color: '#111',
+    fontFamily: FONTS.main.semiBold,
+    fontSize: 15,
+  },
   topBar: {
     position: 'absolute',
     left: 0,

@@ -1,6 +1,6 @@
 import React from 'react';
 import { ActivityIndicator, TextInput, TouchableOpacity, View } from 'react-native';
-import { CopyIcon, MicIcon, Share2, SquareIcon, Volume2 } from 'lucide-react-native';
+import { CopyIcon, MicIcon, ScanText, Share2, SquareIcon, Volume2 } from 'lucide-react-native';
 
 import { Text } from '@/components/ui/text';
 import { FONTS } from '@/constants/fonts';
@@ -26,6 +26,7 @@ type SourcePanelProps = {
   onInputTTS: () => void;
   onCopySource: () => void;
   onShareRecording: () => void;
+  onLensPress: () => void;
 };
 
 export const SourcePanel = ({
@@ -41,6 +42,7 @@ export const SourcePanel = ({
   onInputTTS,
   onCopySource,
   onShareRecording,
+  onLensPress,
 }: SourcePanelProps) => (
   <View style={[styles.panel, { backgroundColor: card, borderColor: border }]}>
     <View style={{ flex: 1, padding: 20 }}>
@@ -61,6 +63,9 @@ export const SourcePanel = ({
       />
       <View style={styles.sourceToolbar}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 0 }}>
+          <TouchableOpacity style={{ paddingRight: 12, paddingVertical: 6 }} onPress={onLensPress}>
+            <ScanText color={text} size={16} />
+          </TouchableOpacity>
           <TouchableOpacity
             onPress={recorderControls.toggleRecording}
             disabled={recorderControls.isBusy}

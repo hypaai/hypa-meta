@@ -13,11 +13,20 @@ export class LensSocketTimeout extends Error {}
 type NativeWebSocket = new (
   url: string,
   protocols?: string | string[],
-  options?: { headers: Record<string, string> }
+  options?: { headers: Record<string, string> },
 ) => WebSocket;
 
-type Waiting = { message: string; resolve: (text: string) => void; reject: (error: Error) => void };
+type Waiting = {
+  message: string;
+  resolve: (text: string) => void;
+  reject: (error: Error) => void;
+};
 type Inbound = { type: 'translation'; id: string; text: string } | { type: 'error'; id: string; message: string };
+export type LensTranslationMode = {
+  type: 'agent' | 'mt';
+  provider: string;
+  model: string;
+};
 
 export function lensSocketUrl(base = API_URL) {
   return `${base.replace(/^http/i, 'ws').replace(/\/+$/, '')}/v2/agent/lens`;
@@ -36,12 +45,18 @@ export class LensSocket {
 
   constructor(private readonly url = lensSocketUrl()) {}
 
-  /** Each line runs through the agent pipeline (same as POST /v2/agent) on the server. */
-  translate(text: string, target: string, agent?: { provider: string; model: string }): Promise<string> {
+  /** Each line uses either the agent pipeline or the selected MT model. */
+  translate(text: string, target: string, mode: LensTranslationMode): Promise<string> {
     if (this.closed) return Promise.reject(new Error('Lens closed'));
     if (Date.now() < this.unavailableUntil) return Promise.reject(new LensSocketUnavailable());
     const id = String(++this.sequence);
-    const message = JSON.stringify({ type: 'translate', id, text, target, ...agent });
+    const message = JSON.stringify({
+      type: 'translate',
+      id,
+      text,
+      target,
+      mode,
+    });
     return new Promise<string>((resolve, reject) => {
       const timer = setTimeout(() => {
         if (this.waiting.delete(id)) reject(new LensSocketTimeout());

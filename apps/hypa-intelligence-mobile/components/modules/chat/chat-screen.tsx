@@ -1097,7 +1097,10 @@ export function ChatScreen({
             {iconButton(
               "Open Lens",
               <ScanText color={colors.iconMuted} size={21} />,
-              () => runWithConsent(() => router.push("/lens")),
+              () => runWithConsent(() => router.push({ pathname: "/lens", params: {
+                page_source: "chat",
+                use_agent: "true",
+              } })),
               locked || picking || recorder.isRecording,
             )}
             {iconButton(

@@ -125,14 +125,17 @@ export async function translateText(params: {
 export async function translateLensLine(params: {
   text: string;
   targetLang: string;
+  translationModel?: string;
+  provider?: string;
   signal?: AbortSignal;
 }): Promise<string> {
   const { body, translationId } = buildMtRequest({
     text: params.text,
     sourceLang: AUTO_DETECT_LANGUAGE,
     targetLang: params.targetLang,
-    llmModel: 'auto',
+    llmModel: params.translationModel ?? 'auto',
   });
+  if (params.provider) body.provider = params.provider as typeof body.provider;
   const response = await api.post<string>(
     TRANSLATE_ENDPOINTS.mt,
     { ...body, save_history: false },

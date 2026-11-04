@@ -76,13 +76,13 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
     }
   }, [settingsLoading, settings?.token]);
 
-  // if (!enabled) {
-  //   return (
-  //     <Body showBackground={false}>
-  //       <Requirements />
-  //     </Body>
-  //   );
-  // }
+  if (!enabled) {
+    return (
+      <Body showBackground={false}>
+        <Requirements />
+      </Body>
+    );
+  }
   const isAuthRoute = pathname.startsWith('/auth');
   const isInitialLoading =
     !isAuthRoute &&

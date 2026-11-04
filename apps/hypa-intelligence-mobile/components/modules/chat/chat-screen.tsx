@@ -39,6 +39,7 @@ import {
   Keyboard,
   Mic,
   Plus,
+  ScanText,
   Sparkles,
   Square,
   UserRound,
@@ -1091,6 +1092,12 @@ export function ChatScreen({
               "Take photo",
               <Camera color={colors.iconMuted} size={21} />,
               () => void pickImages(true),
+              locked || picking || recorder.isRecording,
+            )}
+            {iconButton(
+              "Open Lens",
+              <ScanText color={colors.iconMuted} size={21} />,
+              () => runWithConsent(() => router.push("/lens")),
               locked || picking || recorder.isRecording,
             )}
             {iconButton(

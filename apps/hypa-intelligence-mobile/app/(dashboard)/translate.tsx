@@ -246,7 +246,6 @@ const Entry = () => {
     try {
       ttsPlayerRef.current?.pause();
       ttsPlayerRef.current?.remove();
-      ttsPlayerRef.current?.release?.();
     } catch {}
     ttsPlayerRef.current = null;
     setActiveTtsPanel(null);
@@ -278,7 +277,6 @@ const Entry = () => {
         try {
           player.pause?.();
           player.remove?.();
-          player.release?.();
         } catch {}
         return;
       }
@@ -299,7 +297,6 @@ const Entry = () => {
         try {
           player.pause?.();
           player.remove?.();
-          player.release?.();
         } catch {}
         return;
       }

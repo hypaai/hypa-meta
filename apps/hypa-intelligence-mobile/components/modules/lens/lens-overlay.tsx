@@ -1,4 +1,4 @@
-import { type ReactNode, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import Animated, {
   cancelAnimation,
@@ -10,48 +10,55 @@ import Animated, {
   withRepeat,
   withTiming,
 } from 'react-native-reanimated';
+import { scheduleOnRN } from 'react-native-worklets';
 
 import { FONTS } from '@/constants/fonts';
 import type { LensMotion } from '@/hooks/use-lens-frames';
-import type { LineWeight } from '@/lib/lens/line-colors';
+import { LINE_HEIGHT } from '@/lib/lens/fit-text';
+import { followMotion, motionSpeed, predictMotion, type Steadiness, stepSteadiness } from '@/lib/lens/motion-placement';
 import type { LineShape } from '@/lib/lens/overlay-geometry';
-import { followMotion, predictMotion } from '@/lib/lens/motion-placement';
 
-export type OverlayLine = LineShape & {
+/** One translation unit inside a card. No text yet means it is still translating. */
+export type CardSegment = { key: string; text?: string; bars: number[] };
+
+/** One paragraph card, drawn over the block of source text it translates. */
+export type OverlayCard = LineShape & {
   key: string;
   background: string;
   color: string;
-} & ({ loading: true } | { loading?: false; text: string; weight: LineWeight; fontSize: number });
+  /** Padding around the source text, in view points. */
+  pad: number;
+  fontSize: number;
+  /** Source line height in view points: sets the skeleton bar rhythm. */
+  lineHeight: number;
+  segments: CardSegment[];
+};
 
 export type MotionToView = { x: { x: number; y: number }; y: { x: number; y: number } };
 
-const GLIDE_MS = 70;
-// Generous padding so ascenders, descenders and OCR's tight boxes never let the source text show.
-const PAD_ALONG = 0.35;
-const PAD_ACROSS = 0.28;
-const PULSE_MS = 700;
-const REVEAL_MS = 160;
-const SKELETON_HEIGHT = 0.42;
-const SKELETON_MIN = 0.12;
-const SKELETON_MAX = 0.32;
-
-const FONT_BY_WEIGHT: Record<LineWeight, string> = {
-  regular: FONTS.main.regular,
-  medium: FONTS.main.medium,
-  bold: FONTS.main.bold,
-};
-
+const GLIDE_MS = 90;
+const PULSE_MS = 750;
+const REVEAL_MS = 180;
+const HIDE_MS = 120;
+const SHOW_MS = 220;
+const SKELETON_HEIGHT = 0.4;
+const SKELETON_MIN = 0.18;
+const SKELETON_MAX = 0.38;
 export function LensOverlay({
-  lines,
+  cards,
   motion,
   motionToView,
+  onFastChange,
 }: {
-  lines: OverlayLine[];
+  cards: OverlayCard[];
   motion: LensMotion;
   motionToView: SharedValue<MotionToView | null>;
+  onFastChange?: (fast: boolean) => void;
 }) {
   const offset = useSharedValue({ x: 0, y: 0 });
   const pulse = useSharedValue(0);
+  const shown = useSharedValue(1);
+  const steadiness = useSharedValue<Steadiness>({ moving: false, steadySince: 0 });
 
   useEffect(() => {
     pulse.value = withRepeat(withTiming(1, { duration: PULSE_MS, easing: Easing.inOut(Easing.sin) }), -1, true);
@@ -61,97 +68,58 @@ export function LensOverlay({
   useFrameCallback((frame) => {
     const toView = motionToView.value;
     if (!toView) return;
+    const now = Date.now();
     const state = motion.getDirty();
-    const { x, y } = predictMotion(state, Date.now());
+    const { x, y } = predictMotion(state, now);
     const target = {
       x: toView.x.x * x + toView.y.x * y,
       y: toView.x.y * x + toView.y.y * y,
     };
     offset.value = followMotion(offset.value, target, frame.timeSincePreviousFrame ?? 1000);
+
+    const next = stepSteadiness(steadiness.value, motionSpeed(state, toView, now), now);
+    if (next.moving !== steadiness.value.moving) {
+      shown.value = withTiming(next.moving ? 0 : 1, { duration: next.moving ? HIDE_MS : SHOW_MS });
+      if (onFastChange) scheduleOnRN(onFastChange, next.moving);
+    }
+    if (next !== steadiness.value) steadiness.value = next;
   });
 
   const follow = useAnimatedStyle(() => ({
+    opacity: shown.value,
     transform: [{ translateX: offset.value.x }, { translateY: offset.value.y }],
   }));
 
   return (
     <Animated.View pointerEvents="none" style={[StyleSheet.absoluteFill, follow]}>
-      {lines.map((line) => (
-        <Patch key={line.key} line={line}>
-          <LineContent line={line} pulse={pulse} />
-        </Patch>
+      {cards.map((card) => (
+        <Card key={card.key} card={card} pulse={pulse} />
       ))}
     </Animated.View>
   );
 }
 
-function LineContent({ line, pulse }: { line: OverlayLine; pulse: SharedValue<number> }) {
-  const arrived = useSharedValue(line.loading ? 0 : 1);
-  const [text, setText] = useState<Extract<OverlayLine, { text: string }> | null>(line.loading ? null : line);
-
-  useEffect(() => {
-    if (line.loading) {
-      arrived.value = withTiming(0, { duration: REVEAL_MS });
-      return;
-    }
-    setText(line);
-    arrived.value = withTiming(1, { duration: REVEAL_MS });
-  }, [arrived, line]);
-
-  const skeleton = useAnimatedStyle(() => ({
-    opacity: (1 - arrived.value) * (SKELETON_MIN + (SKELETON_MAX - SKELETON_MIN) * pulse.value),
-  }));
-  const reveal = useAnimatedStyle(() => ({ opacity: arrived.value }));
-
-  const barHeight = Math.max(3, line.thickness * SKELETON_HEIGHT);
-  // Text starts where the source line starts, like a paragraph, not floating in the middle of its patch.
-  const inset = line.thickness * PAD_ALONG;
-  return (
-    <>
-      <Animated.View style={[StyleSheet.absoluteFill, styles.start, { paddingHorizontal: inset }, skeleton]}>
-        <View
-          style={{
-            width: '100%',
-            height: barHeight,
-            borderRadius: barHeight / 2,
-            backgroundColor: line.color,
-          }}
-        />
-      </Animated.View>
-      {text ? (
-        <Animated.View style={[StyleSheet.absoluteFill, styles.start, { paddingHorizontal: inset }, reveal]}>
-          <Text
-            numberOfLines={1}
-            adjustsFontSizeToFit
-            minimumFontScale={0.3}
-            style={[styles.text, { color: text.color, fontFamily: FONT_BY_WEIGHT[text.weight], fontSize: text.fontSize }]}>
-            {text.text}
-          </Text>
-        </Animated.View>
-      ) : null}
-    </>
-  );
-}
-
-function Patch({ line, children }: { line: OverlayLine; children: ReactNode }) {
-  const centerX = useSharedValue(line.centerX);
-  const centerY = useSharedValue(line.centerY);
-  const length = useSharedValue(line.length);
-  const thickness = useSharedValue(line.thickness);
-  const angle = useSharedValue(line.angle);
+function Card({ card, pulse }: { card: OverlayCard; pulse: SharedValue<number> }) {
+  const centerX = useSharedValue(card.centerX);
+  const centerY = useSharedValue(card.centerY);
+  const length = useSharedValue(card.length);
+  const thickness = useSharedValue(card.thickness);
+  const angle = useSharedValue(card.angle);
+  const pad = useSharedValue(card.pad);
 
   useEffect(() => {
     const glide = { duration: GLIDE_MS };
-    centerX.value = withTiming(line.centerX, glide);
-    centerY.value = withTiming(line.centerY, glide);
-    length.value = withTiming(line.length, glide);
-    thickness.value = withTiming(line.thickness, glide);
-    angle.value = withTiming(angle.value + ((((line.angle - angle.value + 540) % 360) + 360) % 360) - 180, glide);
-  }, [angle, centerX, centerY, length, line.angle, line.centerX, line.centerY, line.length, line.thickness, thickness]);
+    centerX.value = withTiming(card.centerX, glide);
+    centerY.value = withTiming(card.centerY, glide);
+    length.value = withTiming(card.length, glide);
+    thickness.value = withTiming(card.thickness, glide);
+    pad.value = withTiming(card.pad, glide);
+    angle.value = withTiming(angle.value + ((((card.angle - angle.value + 540) % 360) + 360) % 360) - 180, glide);
+  }, [angle, card.angle, card.centerX, card.centerY, card.length, card.pad, card.thickness, centerX, centerY, length, pad, thickness]);
 
   const placement = useAnimatedStyle(() => {
-    const width = length.value + thickness.value * PAD_ALONG * 2;
-    const height = thickness.value * (1 + PAD_ACROSS * 2);
+    const width = length.value + pad.value * 2;
+    const height = thickness.value + pad.value * 2;
     return {
       left: centerX.value - width / 2,
       top: centerY.value - height / 2,
@@ -161,30 +129,84 @@ function Patch({ line, children }: { line: OverlayLine; children: ReactNode }) {
     };
   });
 
-  const feather = Math.max(2, line.thickness * 0.2);
+  const radius = Math.min(6, Math.max(2, card.lineHeight * 0.15));
   return (
     <Animated.View
       style={[
-        styles.patch,
+        styles.card,
         placement,
-        { backgroundColor: line.background, borderRadius: feather / 2, boxShadow: `0 0 ${feather}px ${feather / 2}px ${line.background}` },
+        {
+          backgroundColor: card.background,
+          borderRadius: radius,
+          paddingHorizontal: card.pad,
+          paddingVertical: card.pad * 0.8,
+          boxShadow: `0 ${radius / 2}px ${radius * 2}px rgba(0,0,0,0.18)`,
+        },
       ]}>
-      {children}
+      {card.segments.map((segment) => (
+        <Segment key={segment.key} segment={segment} card={card} pulse={pulse} />
+      ))}
+    </Animated.View>
+  );
+}
+
+function Segment({ segment, card, pulse }: { segment: CardSegment; card: OverlayCard; pulse: SharedValue<number> }) {
+  // Text always fades in over its (already opaque) card, so lines merging into a box never flash the source.
+  const arrived = useSharedValue(0);
+  const [text, setText] = useState(segment.text);
+
+  useEffect(() => {
+    if (!segment.text) return;
+    setText(segment.text);
+    arrived.value = withTiming(1, { duration: REVEAL_MS });
+  }, [arrived, segment.text]);
+
+  const skeleton = useAnimatedStyle(() => ({
+    opacity: (1 - arrived.value) * (SKELETON_MIN + (SKELETON_MAX - SKELETON_MIN) * pulse.value),
+  }));
+  const reveal = useAnimatedStyle(() => ({ opacity: arrived.value }));
+
+  if (text) {
+    return (
+      <Animated.View style={reveal}>
+        <Text
+          style={[
+            styles.text,
+            { color: card.color, fontSize: card.fontSize, lineHeight: card.fontSize * LINE_HEIGHT },
+          ]}>
+          {text}
+        </Text>
+      </Animated.View>
+    );
+  }
+  const bar = Math.max(3, card.lineHeight * SKELETON_HEIGHT);
+  return (
+    <Animated.View style={skeleton}>
+      {segment.bars.map((width, index) => (
+        <View key={index} style={{ height: card.lineHeight, justifyContent: 'center' }}>
+          <View
+            style={{
+              width: `${Math.max(12, Math.min(100, width * 100))}%`,
+              height: bar,
+              borderRadius: bar / 2,
+              backgroundColor: card.color,
+            }}
+          />
+        </View>
+      ))}
     </Animated.View>
   );
 }
 
 const styles = StyleSheet.create({
-  patch: {
+  card: {
     position: 'absolute',
-  },
-  start: {
-    alignItems: 'flex-start',
-    justifyContent: 'center',
+    overflow: 'hidden',
+    justifyContent: 'flex-start',
   },
   text: {
+    fontFamily: FONTS.main.regular,
     includeFontPadding: false,
     textAlign: 'left',
-    alignSelf: 'stretch',
   },
 });

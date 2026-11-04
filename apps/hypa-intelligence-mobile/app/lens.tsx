@@ -10,19 +10,20 @@ import { useSharedValue } from 'react-native-reanimated';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Camera, type CameraRef, useCameraDevice, useCameraPermission } from 'react-native-vision-camera';
 
-import { LensOverlay, type MotionToView, type OverlayLine } from '@/components/modules/lens/lens-overlay';
+import { LensOverlay, type MotionToView, type OverlayCard } from '@/components/modules/lens/lens-overlay';
 import LanguageSelector from '@/components/ui/language-selector';
 import { FONTS } from '@/constants/fonts';
 import { useSettings } from '@/context/settings-context';
 import { type FrameLine, type FrameLines, useLensFrames } from '@/hooks/use-lens-frames';
 import { useTranslationTargetLanguagePresets } from '@/hooks/use-model-languages';
-import { LiveLines, normalizeLine } from '@/lib/lens/live-lines';
-import { lineShape, type Size } from '@/lib/lens/overlay-geometry';
+import { LiveLines } from '@/lib/lens/live-lines';
+import { evenThickness, lineShape, type Size } from '@/lib/lens/overlay-geometry';
 import { type PreviewBasis, toPreviewCameraPoint } from '@/lib/lens/frame-points';
 import { LensSocket, LensSocketOffline, LensSocketUnavailable } from '@/lib/lens/lens-socket';
 import { trackLines } from '@/lib/lens/stabilize-lines';
 import { StickyOverlay } from '@/lib/lens/sticky-overlay';
-import { PageLayout } from '@/lib/lens/page-layout';
+import { PageBlocks, type PageBlock } from '@/lib/lens/page-blocks';
+import { fitText, sharedFont } from '@/lib/lens/fit-text';
 import { languageNameToCode } from '@/lib/model-languages';
 import { synthesizeSpeech, translateLensLine } from '@/lib/product-api';
 import { useToast } from '@/lib/toast';
@@ -33,7 +34,16 @@ const UPRIGHT_BASIS = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }];
 
 const isUpperCase = (text: string) => /\p{L}/u.test(text) && text === text.toLocaleUpperCase();
 
-type TrackedLines = Omit<FrameLines, 'lines'> & { lines: (FrameLine & { seenAt: number; id: number })[] };
+type TrackedLine = FrameLine & { seenAt: number; id: number };
+type TrackedLines = Omit<FrameLines, 'lines'> & { lines: TrackedLine[]; blocks: PageBlock[]; pass: number };
+
+/** Card padding around the source text, and the largest translation size, in source line heights. */
+const CARD_PAD = 0.12;
+/** Big display text must not get a big margin: padding never exceeds this many points. */
+const MAX_PAD = 5;
+const MAX_FONT = 0.85;
+
+const segmentTexts = (blocks: PageBlock[]) => blocks.flatMap((block) => block.segments.map((segment) => segment.text));
 
 function useAppActive() {
   const [active, setActive] = useState(AppState.currentState === 'active');
@@ -63,13 +73,17 @@ export default function LensScreen() {
   const [frameLines, setFrameLines] = useState<TrackedLines | null>(null);
   const [viewSize, setViewSize] = useState<Size | null>(null);
   const [offline, setOffline] = useState(false);
+  const [unavailable, setUnavailable] = useState(false);
   const [noText, setNoText] = useState(false);
   const [translationsVersion, setTranslationsVersion] = useState(0);
   const [speaking, setSpeaking] = useState<'loading' | 'playing' | null>(null);
 
   const liveLines = useRef(new LiveLines()).current;
   const sticky = useRef(new StickyOverlay()).current;
-  const layout = useRef(new PageLayout()).current;
+  const pages = useRef(new PageBlocks()).current;
+  const trackedRef = useRef<TrackedLine[]>([]);
+  const passRef = useRef(0);
+  const [fast, setFast] = useState(false);
   const abort = useRef(new AbortController()).current;
   const socket = useRef(new LensSocket()).current;
   const lastTextAt = useRef(Date.now());
@@ -120,12 +134,14 @@ export default function LensScreen() {
           .then((translation) => {
             liveLines.resolve(target, [{ line, translation }]);
             setOffline(false);
+            setUnavailable(false);
             setTranslationsVersion((version) => version + 1);
           })
           .catch((error) => {
             if (abort.signal.aborted) return;
             liveLines.reject(target, [line], Date.now());
             if (error instanceof LensSocketOffline || (isAxiosError(error) && !error.response)) setOffline(true);
+            else setUnavailable(true);
             setTranslationsVersion((version) => version + 1);
           });
       }
@@ -136,21 +152,16 @@ export default function LensScreen() {
   const onLines = useCallback(
     (result: FrameLines) => {
       const now = Date.now();
-      setFrameLines((previous) => ({
-        ...result,
-        lines: trackLines(previous?.lines ?? [], result.lines, now),
-      }));
+      const tracked = trackLines(trackedRef.current, result.lines, now);
+      trackedRef.current = tracked;
+      const blocks = pages.build(tracked, result.image);
+      setFrameLines({ ...result, lines: tracked, blocks, pass: ++passRef.current });
       if (result.lines.length) lastTextAt.current = now;
       setNoText(now - lastTextAt.current > NO_TEXT_HINT_MS);
-      const due = liveLines.observe(
-        result.lines.map((line) => line.text),
-        targetRef.current,
-        now,
-        MAX_REQUESTS_PER_FRAME
-      );
+      const due = liveLines.observe(segmentTexts(blocks), targetRef.current, now, MAX_REQUESTS_PER_FRAME);
       if (due.length) translate(due, targetRef.current);
     },
-    [liveLines, translate]
+    [liveLines, pages, translate]
   );
 
   const { frameOutput, motion } = useLensFrames({ paused, onLines });
@@ -177,33 +188,98 @@ export default function LensScreen() {
     };
   }, [motionToView, viewBasis]);
 
-  const overlay = useMemo<OverlayLine[]>(() => {
+  /**
+   * Lines first: each source line gets its own patch with a skeleton while it translates. When a
+   * segment's translation arrives, its lines merge into one tight box holding the wrapped translation.
+   */
+  const overlay = useMemo<OverlayCard[]>(() => {
     if (!frameLines || !viewBasis) return [];
-    sticky.begin(targetLang, frameLines.lines);
-    const visible = frameLines.lines.flatMap((line) => {
-      const fresh = liveLines.lookup(line.text, targetLang);
-      const shape = lineShape(line.corners.map((point) => toPreviewCameraPoint(point, viewBasis)));
-      const shown = sticky.place(line.id, line, shape, fresh);
-      const translation = shown.text;
-      if (!translation && !liveLines.isLoading(line.text, targetLang)) return [];
-      if (translation && normalizeLine(translation).toLowerCase() === normalizeLine(line.text).toLowerCase()) return [];
-      return [{ ...shape, length: shown.length, thickness: shown.thickness, line, shown, translation }];
-    });
-    return layout.arrange(visible).map(({ line, shown, translation, ...shape }): OverlayLine => {
-      const base = { ...shape, key: String(line.id), background: shown.background, color: shown.color };
-      if (!translation) return { ...base, loading: true };
-      const upper = isUpperCase(line.text);
-      return {
-        ...base,
-        text: upper ? translation.toLocaleUpperCase() : translation,
-        weight: shown.weight,
-        fontSize: Math.max(8, shape.thickness * (upper ? 1.2 : 0.9)),
-      };
-    });
-  }, [frameLines, layout, liveLines, sticky, targetLang, translationsVersion, viewBasis]);
+    const { blocks } = frameLines;
+    const byId = new Map(frameLines.lines.map((line) => [line.id, line]));
+    const toView = (corners: { x: number; y: number }[]) =>
+      lineShape(corners.map((point) => toPreviewCameraPoint(point, viewBasis)));
+    const cards: OverlayCard[] = [];
+    const live: string[] = [];
+    const pending: (() => void)[] = [];
+    sticky.retarget(targetLang);
+    sticky.noteLines(blocks.flatMap((block) => block.segments.flatMap((segment) => segment.lineIds)));
+
+    for (const block of blocks) {
+      const translated: { card: OverlayCard; fit: number }[] = [];
+      // Source lines of one paragraph share one bar thickness, measured in view points.
+      const sharedThickness = block.lineHeight * (toView(block.corners).length / Math.max(1, block.length));
+      for (const segment of block.segments) {
+        const fresh = liveLines.lookup(segment.text, targetLang);
+        const shown = sticky.text(segment.key, fresh, segment.lineIds);
+        if (shown) {
+          const key = `s:${segment.key}`;
+          live.push(key);
+          pending.push(() => {
+            const seen = toView(segment.corners);
+            const lineHeight = segment.lineHeight * (seen.length / Math.max(1, segment.length));
+            const placed = sticky.place(key, seen, lineHeight);
+            const pad = Math.min(MAX_PAD, lineHeight * CARD_PAD);
+            const text = isUpperCase(segment.text) ? shown.toLocaleUpperCase() : shown;
+            // Boxes never grow past the lines they cover (that is how they run into each other): the text shrinks instead.
+            const fit = fitText([text], placed.length, placed.thickness + pad * 0.4, lineHeight * MAX_FONT);
+            translated.push({
+              fit: fit.fontSize,
+              card: {
+                ...placed,
+                key,
+                background: sticky.colors.background,
+                color: sticky.colors.color,
+                pad,
+                fontSize: fit.fontSize,
+                lineHeight,
+                segments: [{ key: segment.key, text, bars: [] }],
+              },
+            });
+          });
+          continue;
+        }
+        if (!liveLines.isLoading(segment.text, targetLang)) continue;
+        for (const id of segment.lineIds) {
+          const line = byId.get(id);
+          if (!line || !sticky.mayLoad(id)) continue;
+          const key = `l:${id}`;
+          live.push(key);
+          pending.push(() => {
+            const seen = evenThickness(toView(line.corners), sharedThickness);
+            const placed = sticky.place(key, seen, seen.thickness);
+            cards.push({
+              ...placed,
+              key,
+              background: sticky.colors.background,
+              color: sticky.colors.color,
+              pad: Math.min(MAX_PAD, placed.thickness * CARD_PAD),
+              fontSize: placed.thickness * MAX_FONT,
+              lineHeight: placed.thickness,
+              segments: [{ key: String(id), bars: [1] }],
+            });
+          });
+        }
+      }
+      // The translations of one block share a size (see sharedFont), so the paragraph doesn't read as mixed type.
+      pending.push(() => {
+        const shared = sharedFont(translated.map((entry) => entry.fit));
+        for (const { card, fit } of translated) {
+          cards.push({ ...card, fontSize: shared === undefined ? fit : Math.min(fit, shared) });
+        }
+      });
+    }
+    sticky.begin(
+      targetLang,
+      frameLines.lines,
+      live,
+      blocks.flatMap((block) => block.segments.map((segment) => segment.key))
+    );
+    for (const place of pending) place();
+    return sticky.settle(cards, frameLines.pass, Date.now());
+  }, [frameLines, liveLines, sticky, targetLang, translationsVersion, viewBasis]);
 
   const spokenText = useMemo(
-    () => [...new Set(overlay.flatMap((line) => (line.loading ? [] : [line.text])))].join('\n'),
+    () => overlay.flatMap((card) => card.segments.flatMap((segment) => (segment.text ? [segment.text] : []))).join('\n'),
     [overlay]
   );
   const voice = useMemo(() => {
@@ -250,7 +326,7 @@ export default function LensScreen() {
       stopSpeech();
       setTargetLang(next);
       if (paused) {
-        const due = liveLines.observe(frameLines?.lines.map((line) => line.text) ?? [], next, Date.now());
+        const due = liveLines.observe(segmentTexts(frameLines?.blocks ?? []), next, Date.now());
         if (due.length) translate(due, next);
       }
     },
@@ -261,10 +337,12 @@ export default function LensScreen() {
     stopSpeech();
     liveLines.clear();
     sticky.clear();
-    layout.reset();
+    setUnavailable(false);
+    pages.reset();
+    trackedRef.current = [];
     setFrameLines(null);
     setTranslationsVersion((version) => version + 1);
-  }, [layout, liveLines, sticky, stopSpeech]);
+  }, [liveLines, pages, sticky, stopSpeech]);
 
   const togglePause = useCallback(() => {
     stopSpeech();
@@ -306,7 +384,15 @@ export default function LensScreen() {
     );
   }
 
-  const status = offline ? "Offline: can't translate" : noText && !paused ? 'Point at text' : null;
+  const status = offline
+    ? "Offline: can't translate"
+    : fast && !paused
+      ? 'Moving too fast. Hold steady to translate'
+      : unavailable
+        ? "Translation isn't available right now"
+        : noText && !paused
+          ? 'Point at text'
+          : null;
 
   return (
     <View style={styles.screen}>
@@ -321,7 +407,7 @@ export default function LensScreen() {
         torchMode={torch ? 'on' : 'off'}
         resizeMode="cover"
       />
-      <LensOverlay lines={overlay} motion={motion} motionToView={motionToView} />
+      <LensOverlay cards={overlay} motion={motion} motionToView={motionToView} onFastChange={setFast} />
 
       <View style={[styles.topBar, { paddingTop: insets.top + 8 }]}>
         <RoundButton label="Close Lens" onPress={close}>

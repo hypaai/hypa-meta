@@ -1,6 +1,6 @@
 # Hypa Intelligence — Local Contest Setup
 
-This guide help you run Hypa Intelligence locally . It covers the API, database, Redis, agent features, and mobile application.
+This guide helps you run Hypa Intelligence locally. It covers the API, database, Redis, agent features, and mobile application.
 
 The recommended review path is:
 
@@ -54,8 +54,8 @@ Install:
 - Node.js 22.18 or newer
 - pnpm 11.25.0 (run `corepack enable` first to get the right pnpm version; on Windows without administrator rights `corepack enable` fails with `EPERM`, so run `npm install -g pnpm@11.25.0` instead)
 - Git
-- PostgreSQL compatible with the Prisma version used by this project
-- Redis
+- PostgreSQL compatible with the Prisma version used by this project, with the `pgvector` extension (the schema uses a `vector(1536)` column)
+- Redis 6.2.0 or newer
 - Xcode and CocoaPods for iOS development
 - Android Studio, Android SDK tools, and a compatible JDK for Android development
 
@@ -105,8 +105,10 @@ docker run --name hypa-postgres \
   -e POSTGRES_DB=hypa-v2 \
   -p 5432:5432 \
   -v hypa-postgres-data:/var/lib/postgresql/data \
-  -d postgres
+  -d pgvector/pgvector:pg17
 ```
+
+The plain `postgres` image does not include `pgvector`, and `pnpm prisma db push` fails with `type "vector" does not exist` without it.
 
 If the container already exists, start it instead:
 
@@ -154,6 +156,14 @@ The matching API connection string is:
 DATABASE_URL=postgresql://localhost:5432/hypa-v2?schema=public
 ```
 
+If your PostgreSQL user needs a password, include it: `postgresql://<user>:<password>@localhost:5432/hypa-v2?schema=public`. Creating the database requires a user with the `CREATEDB` privilege.
+
+Install `pgvector` for your PostgreSQL version and enable it in the database:
+
+```bash
+psql <your-connection-string> -c 'CREATE EXTENSION IF NOT EXISTS vector;'
+```
+
 For Windows or Linux, start PostgreSQL using the service manager for the installed distribution, then create a database named `hypa-v2`.
 
 </details>
@@ -182,7 +192,7 @@ On macOS with Homebrew:
 brew services start redis
 ```
 
-Verify Redis:
+Verify Redis (with Docker Redis, run `docker exec hypa-redis redis-cli ping`; `redis-cli` is not available on Windows by default):
 
 ```bash
 redis-cli ping

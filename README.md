@@ -32,6 +32,7 @@ The recommended review path is:
 - [8. Run in a simulator or emulator](#8-run-in-a-simulator-or-emulator)
 - [9. Run on a physical device](#9-run-on-a-physical-device)
 - [10. Validate the keyboard](#10-validate-the-keyboard)
+- [Connect Hypa MCP to Claude Code (Desktop)](#connect-hypa-mcp-to-claude-code-desktop)
 - [Useful commands](#useful-commands)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
@@ -438,6 +439,38 @@ The keyboard functionality should be reviewed on a physical device. Test:
 - Returning from the keyboard to the main Hypa app.
 
 If the keyboard is missing, verify that the development build installed successfully, enable Hypa Keyboard in system settings, select it from the keyboard picker, and restart the app.
+
+## Connect Hypa MCP to Claude Code (Desktop)
+
+You need Node.js and a Hypa API key. This connects to the hosted MCP server; no local API setup is required.
+
+1. Open **Settings → Desktop app → Extensions → Manage**.
+2. Under **Local MCP servers**, click **Edit config** and open `claude_desktop_config.json`.
+3. Add the configuration below, replacing `YOUR_HYPA_API_KEY` with your key. Keep existing settings; if `mcpServers` already exists, add `hypa` inside it.
+
+   ```json
+   {
+     "mcpServers": {
+       "hypa": {
+         "command": "cmd",
+         "args": [
+           "/c", "npx", "-y", "mcp-remote",
+           "https://api.hypaintelligence.com/v2/mcp",
+           "--header", "x-api-key:${HYPA_API_KEY}"
+         ],
+         "env": {
+           "HYPA_API_KEY": "YOUR_HYPA_API_KEY"
+         }
+       }
+     }
+   }
+   ```
+
+4. Save, fully quit and reopen Claude. Return to **Local MCP servers** and check that **hypa** shows **Running**. Start a Code session using **This computer**.
+
+On macOS, use `"command": "npx"` and remove `"/c", "npx"` from `args`.
+
+Keep your API key private and do not commit the configuration file.
 
 ## Useful commands
 

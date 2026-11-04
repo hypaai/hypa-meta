@@ -12,6 +12,7 @@ import type { Duplex } from 'stream';
 import { WebSocket, WebSocketServer } from 'ws';
 import { AuthGuard } from '../auth/auth.guard';
 import { AgentService } from './agent.service';
+import { cleanLensTranslation } from './lens-translation';
 
 export const LENS_SOCKET_PATH = '/v2/agent/lens';
 
@@ -65,6 +66,8 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
     void this.authenticate(req)
       .then((caller) => {
         if (socket.destroyed) return;
+        const who = caller.user?.id ?? caller.userId;
+        this.logger.log(`Lens socket connected (${who ? `user ${who}` : 'anonymous'})`);
         this.wss.handleUpgrade(req, socket, head, (client) => this.serve(client, caller));
       })
       .catch(() => {
@@ -97,7 +100,9 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
           .then((text) => send({ type: 'translation', id: job.id, text }))
           .catch((error: unknown) => {
             if (controller.signal.aborted) return;
-            send({ type: 'error', id: job.id, message: error instanceof Error ? error.message : 'Translation failed' });
+            const message = error instanceof Error ? error.message : 'Translation failed';
+            this.logger.warn(`Lens line ${job.id} failed: ${message}`);
+            send({ type: 'error', id: job.id, message });
           })
           .finally(() => {
             if (running.get(job.id) === controller) running.delete(job.id);
@@ -164,9 +169,12 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
     });
     return new Promise<string>((resolve, reject) => {
       let settled = false;
-      const finish = (error: Error | null, text?: string) => {
+      // Lens shows exactly what comes back, so a reply that is chatter ("Translating now...") is a failure, not a translation.
+      const finish = (error: Error | null, raw?: string) => {
         if (settled) return;
         settled = true;
+        const text = error ? undefined : cleanLensTranslation(raw ?? '', job.text);
+        if (!error && !text) error = new Error('No translation returned');
         signal.removeEventListener('abort', onAbort);
         // The tool result is the translation; skip the model's closing turn.
         this.agent.cancel(run);

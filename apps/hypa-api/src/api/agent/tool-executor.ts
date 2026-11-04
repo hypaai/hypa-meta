@@ -34,8 +34,9 @@ import { detectAudioMime } from 'src/libs/shared/audio-mime';
 import type { SpendCap } from 'src/libs/shared/spend-cap';
 
 export interface ToolCaller {
-  userId: string;
-  apiKeyId: string;
+  /** Missing for anonymous callers, who may only run tools that need no account (see ANONYMOUS_TOOLS). */
+  userId?: string;
+  apiKeyId?: string;
   signal?: AbortSignal;
   asr?: { provider: string; model: string };
   onStep?: (step: { cost: number } & RanOn) => void | Promise<void>;

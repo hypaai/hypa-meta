@@ -450,6 +450,9 @@ export class AgentService {
     const selectedTools = input.toolNames === undefined
       ? HYPA_TOOLS
       : HYPA_TOOLS.filter((tool) => input.toolNames!.includes(tool.name));
+    // With no payer an agent run has no tools, except those the server itself asked for by name and that
+    // need no account. The public POST /v2/agent never passes toolNames, so its anonymous runs are unchanged.
+    const anonymousMayRun = (name: string) => !payerId && input.toolNames !== undefined && ANONYMOUS_TOOLS.has(name);
     // Recordings the model reaches by number (attachedAudio) instead of being transcribed up front.
     const attachedAudios: { audio: string; audioType: 'base64' | 'url'; stored?: { transcript?: string }; voice?: boolean }[] = [];
     const runTool = async (name: string, args: Record<string, unknown>) => {
@@ -477,16 +480,16 @@ export class AgentService {
       if (!selectedTools.some((tool) => tool.name === name)) {
         throw new Error(`Tool ${name} is not enabled for this message`);
       }
-      if (!payerId || !this.tools) {
+      if ((!payerId && !anonymousMayRun(name)) || !this.tools) {
         throw new Error('Tools are not available for this request');
       }
       const tool = HYPA_TOOLS.find((entry) => entry.name === name);
       if (!tool) throw new Error(`Unknown tool ${name}`);
-      const apiKey = await this.billing.findOrCreateUserApiKey(payerId);
+      const apiKey = payerId ? await this.billing.findOrCreateUserApiKey(payerId) : undefined;
       let cost = 0;
       const executor = this.tools.forCaller({
         userId: payerId,
-        apiKeyId: apiKey.id,
+        apiKeyId: apiKey?.id,
         signal: abort.signal,
         asr: input.asr,
         spend,
@@ -636,7 +639,7 @@ export class AgentService {
           : '',
     ].filter(Boolean);
     const modelUser = [userText || 'Help me with the attached files.', ...contextLines, ...imageNotes.filter(Boolean)].join('\n\n');
-    const tools = payerId ? toFunctionTools(selectedTools) : [];
+    const tools = toFunctionTools(payerId ? selectedTools : selectedTools.filter((tool) => anonymousMayRun(tool.name)));
     if (input.surface === 'keyboard') tools.push(finishTool());
     const messages: LoopMessage[] = [
       { role: 'system', content: input.systemInstruction ?? getAgentSystemPrompt() },
@@ -1054,6 +1057,8 @@ async function audioDurationMs(bytes: Buffer, mime: string) {
 }
 
 const ANONYMOUS_RESULT_TTL_MS = 15 * 60 * 1000;
+/** Tools an anonymous caller may run when the server asks for them: the same free translation as POST /v2/translate/mt. */
+const ANONYMOUS_TOOLS = new Set(['translate_message']);
 const anonymousKey = (requestId: string) => `agent-anon:${requestId}`;
 
 export interface AnonymousResult {

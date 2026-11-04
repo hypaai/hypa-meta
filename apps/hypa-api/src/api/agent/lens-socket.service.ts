@@ -208,7 +208,7 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
       requestId: randomUUID(),
       userId: caller.user?.id ?? caller.userId,
       ephemeral: true,
-      input: `Translate into ${job.target}:\n${job.text}`,
+      input: `Translate into ${job.target}:\n${job.text} and return only the translation, no quotes or notes.`,
       provider: job.mode.provider,
       model: job.mode.model,
       surface: 'app',

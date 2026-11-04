@@ -33,3 +33,22 @@ test('text running top to bottom has a 90 degree angle', () => {
   assert.equal(shape.length, 200);
   assert.equal(shape.thickness, 20);
 });
+
+import { covers, evenThickness, shapeQuad } from './overlay-geometry';
+
+test('shapeQuad of an upright card is its rectangle', () => {
+  const quad = shapeQuad({ centerX: 50, centerY: 20, length: 40, thickness: 10, angle: 0 });
+  assert.deepEqual(quad.map((p) => [Math.round(p.x), Math.round(p.y)]), [[30, 15], [70, 15], [70, 25], [30, 25]]);
+});
+
+test('covers follows the card rotation', () => {
+  const tall = { centerX: 0, centerY: 0, length: 100, thickness: 10, angle: 90 };
+  assert.ok(covers(tall, { ...tall, centerY: 40 }));
+  assert.ok(!covers(tall, { ...tall, centerX: 40 }));
+});
+
+test('evenThickness shares one thickness without exposing the source line', () => {
+  const line = { centerX: 0, centerY: 0, length: 100, thickness: 30, angle: 0 };
+  assert.equal(evenThickness(line, 20).thickness, 30 * 0.85, 'wide boxes shrink only slightly');
+  assert.equal(evenThickness({ ...line, thickness: 12 }, 20).thickness, 20, 'thin boxes grow to the share');
+});

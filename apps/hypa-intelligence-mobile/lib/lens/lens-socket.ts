@@ -3,9 +3,12 @@ import { getSettingsJson, parseKeyboardSettings } from '@/lib/keyboard-settings'
 
 const RECONNECT_MS = [300, 1000, 3000, 5000];
 const UNAVAILABLE_FOR_MS = 30_000;
+/** A line whose reply never comes must fail so it can retry, not sit as a skeleton forever. */
+export const TRANSLATE_TIMEOUT_MS = 30_000;
 
 export class LensSocketUnavailable extends Error {}
 export class LensSocketOffline extends Error {}
+export class LensSocketTimeout extends Error {}
 
 type NativeWebSocket = new (
   url: string,
@@ -40,7 +43,20 @@ export class LensSocket {
     const id = String(++this.sequence);
     const message = JSON.stringify({ type: 'translate', id, text, target, ...agent });
     return new Promise<string>((resolve, reject) => {
-      this.waiting.set(id, { message, resolve, reject });
+      const timer = setTimeout(() => {
+        if (this.waiting.delete(id)) reject(new LensSocketTimeout());
+      }, TRANSLATE_TIMEOUT_MS);
+      this.waiting.set(id, {
+        message,
+        resolve: (text) => {
+          clearTimeout(timer);
+          resolve(text);
+        },
+        reject: (error) => {
+          clearTimeout(timer);
+          reject(error);
+        },
+      });
       if (this.open) this.socket?.send(message);
       else this.connect();
     });

@@ -12,12 +12,15 @@ import {
 } from '@/lib/lens/frame-points';
 import { type LineColors, type LineWeight, type PixelSource, sampleLineColors } from '@/lib/lens/line-colors';
 import type { Size } from '@/lib/lens/overlay-geometry';
+import { uprightSpeed } from '@/lib/lens/motion-placement';
 
 const OCR_INTERVAL_MS = 200;
 const OCR_TIMEOUT_MS = 4000;
 const FALLBACK_COLORS: LineColors = { background: '#ffffff', text: '#111111', weight: 'regular' };
 const BASIS: Point[] = [{ x: 0, y: 0 }, { x: 1, y: 0 }, { x: 0, y: 1 }];
 const MAX_FRAME_GAP_MS = 200;
+/** Don't read text while the phone is moving this fast (upright units per ms): frames are blurred. Matches the overlay's MOVING_SPEED. */
+const MAX_OCR_SPEED = 0.0007;
 
 export type FrameLine = { text: string; corners: Point[]; background: string; color: string; weight: LineWeight };
 export type FrameLines = { image: Size; lines: FrameLine[]; previewBasis: PreviewBasis };
@@ -138,7 +141,8 @@ export function useLensFrames({
         }
 
         const busy = ocrInFlight.getDirty() && now - ocrStartedAt.getDirty() < OCR_TIMEOUT_MS;
-        if (!busy && !isPaused.getDirty() && now - ocrStartedAt.getDirty() >= OCR_INTERVAL_MS) {
+        const blurred = uprightSpeed(motion.getDirty(), now) > MAX_OCR_SPEED;
+        if (!busy && !blurred && !isPaused.getDirty() && now - ocrStartedAt.getDirty() >= OCR_INTERVAL_MS) {
           if (ocr.startRecognition(frame)) {
             ocrMotion.setBlocking(moved);
             ocrStartedAt.setBlocking(now);

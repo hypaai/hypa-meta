@@ -160,3 +160,11 @@ test('a failed line stops loading until it is retried', () => {
   lines.reject('French', ['OPEN'], 0);
   assert.equal(lines.isLoading('OPEN', 'French'), false);
 });
+
+test('a paragraph read slightly differently each frame still becomes due', () => {
+  const live = new LiveLines(250, 5000);
+  const a = 'Budgeting is flexible and will be finalized collectively across four channels.';
+  const b = 'Budgeting is flexible and will be finalised collectively across four channels.';
+  assert.deepEqual(live.observe([a], 'Spanish', 0), []);
+  assert.deepEqual(live.observe([b], 'Spanish', 300), [b]);
+});

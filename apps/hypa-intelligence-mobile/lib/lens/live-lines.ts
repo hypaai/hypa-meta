@@ -2,6 +2,7 @@ export const STABLE_MS = 250;
 export const RETRY_AFTER_MS = 5000;
 const MAX_ENTRIES = 500;
 const MIN_SIMILARITY = 0.8;
+const STABLE_SIMILARITY = 0.85;
 
 export function normalizeLine(text: string) {
   return text.normalize('NFC').replace(/\s+/g, ' ').trim();
@@ -82,19 +83,23 @@ export class LiveLines {
 
   observe(lines: string[], target: string, now: number, limit = Infinity): string[] {
     const current = new Set(lines.map(normalizeLine).filter(hasWords));
+    const before = new Map(this.seen);
     for (const line of this.seen.keys()) {
       if (!current.has(line)) this.seen.delete(line);
     }
 
     const due: string[] = [];
     for (const line of current) {
-      const since = this.seen.get(line);
+      let since = this.seen.get(line);
       if (since === undefined) {
-        this.seen.set(line, now);
-        if (this.stableMs > 0) continue;
-      } else if (now - since < this.stableMs) {
-        continue;
+        // A paragraph rarely reads identically twice; a close reading continues the same text.
+        for (const [other, at] of before) {
+          if (similarity(line, other) >= STABLE_SIMILARITY) since = Math.min(since ?? at, at);
+        }
+        this.seen.set(line, since ?? now);
+        if (since === undefined && this.stableMs > 0) continue;
       }
+      if (now - since! < this.stableMs) continue;
       const entry = this.entries.get(this.key(line, target));
       if (entry?.state === 'done' || entry?.state === 'pending') continue;
       if (this.closest(line, target, (other) => other.state !== 'failed')) continue;

@@ -12,22 +12,13 @@ import {
   unwrapSttResponse,
 } from '@hypa/translate-core';
 import type { ModelCapability } from '@hypa/config/models';
-import {
-  AUTO_CAPABILITIES,
-  toolModelChoices,
-  type HypaExecutor,
-  type RanOn,
-} from '@hypa/intelligence-core';
+import { AUTO_CAPABILITIES, toolModelChoices, type HypaExecutor, type RanOn } from '@hypa/intelligence-core';
 import { BadRequestException, Inject, Injectable, Optional } from '@nestjs/common';
 import { DictionaryController } from '../dictionary/dictionary.controller';
 import { WordOfTheDayService } from '../dictionary/word-of-the-day.service';
 import { TranslateController } from '../translate/translate.controller';
 import { AGENT_CLIENTS, completeAgentTurn, modelAcceptsImages, type AgentClients } from './agent.transport';
-import type {
-  DeveloperMtDto,
-  DeveloperSpeechToTextDto,
-  DeveloperTtsDto,
-} from '../developer/developer.dto';
+import type { DeveloperMtDto, DeveloperSpeechToTextDto, DeveloperTtsDto } from '../developer/developer.dto';
 import { DeveloperSharedService } from '../developer/providers/shared.service';
 import type { AiUsage } from 'src/ai/ai.types';
 import { detectAudioMime } from 'src/libs/shared/audio-mime';
@@ -97,27 +88,59 @@ export class HypaToolExecutor {
 
   forCaller(caller: ToolCaller): HypaExecutor {
     const paid = <T>(work: () => Promise<T>) => (caller.spend ? caller.spend.step(work) : work());
-    const run = <T>(capability: 'MT' | 'ASR' | 'TTS' | 'OCR', model: string | undefined, execute: (caller: ToolCaller) => Promise<T>) => {
+    const run = <T>(
+      capability: 'MT' | 'ASR' | 'TTS' | 'OCR',
+      model: string | undefined,
+      execute: (caller: ToolCaller) => Promise<T>,
+    ) => {
       const choice = resolveToolModel(capability, model, capability === 'ASR' ? caller.asr : undefined);
-      const timeoutMs = choice?.provider === 'auto' && capability !== 'OCR'
-        ? AUTO_ROUTING_TIMEOUTS[capability].deadlineMs
-        : capability === 'ASR' || capability === 'TTS' ? SPEECH_TOOL_TIMEOUT_MS : TEXT_TOOL_TIMEOUT_MS;
-      return paid(() => withRequestDeadline(caller.signal, timeoutMs, `${capability} tool`, (signal) => execute({ ...caller, signal })));
+      const timeoutMs =
+        choice?.provider === 'auto' && capability !== 'OCR'
+          ? AUTO_ROUTING_TIMEOUTS[capability].deadlineMs
+          : capability === 'ASR' || capability === 'TTS'
+            ? SPEECH_TOOL_TIMEOUT_MS
+            : TEXT_TOOL_TIMEOUT_MS;
+      return paid(() =>
+        withRequestDeadline(caller.signal, timeoutMs, `${capability} tool`, (signal) => execute({ ...caller, signal })),
+      );
     };
     return {
       translate: (input) => run('MT', input.model, (next) => this.translate(next, input)),
       speak: (input) => run('TTS', input.model, (next) => this.speak(next, input)),
       transcribe: (input) => run('ASR', input.model, (next) => this.transcribe(next, input)),
-      lookUp: (input) => paid(() => withRequestDeadline(caller.signal, TEXT_TOOL_TIMEOUT_MS, 'Dictionary tool', (signal) => this.lookUp({ ...caller, signal }, input))),
+      lookUp: (input) =>
+        paid(() =>
+          withRequestDeadline(caller.signal, TEXT_TOOL_TIMEOUT_MS, 'Dictionary tool', (signal) =>
+            this.lookUp({ ...caller, signal }, input),
+          ),
+        ),
       readImage: (input) => run('OCR', input.model, (next) => this.readImage(next, input)),
-      wordOfTheDay: () => withRequestDeadline(caller.signal, TEXT_TOOL_TIMEOUT_MS, 'Word of the day', () => this.words.getWordOfTheDay()),
+      wordOfTheDay: () =>
+        withRequestDeadline(caller.signal, TEXT_TOOL_TIMEOUT_MS, 'Word of the day', () => this.words.getWordOfTheDay()),
     };
   }
 
-  private async translate(
+  async translateForCaller(
     caller: ToolCaller,
-    input: Parameters<HypaExecutor['translate']>[0],
+    input: {
+      text: string;
+      sourceLang?: string;
+      targetLang: string;
+      provider: string;
+      model: string;
+    },
   ) {
+    const model =
+      input.provider === 'auto' || input.model === 'auto' ? 'auto' : `${input.provider}/${input.model}`;
+    return this.forCaller(caller).translate({
+      text: input.text,
+      sourceLang: input.sourceLang,
+      targetLang: input.targetLang,
+      model,
+    });
+  }
+
+  private async translate(caller: ToolCaller, input: Parameters<HypaExecutor['translate']>[0]) {
     const choice = resolveToolModel('MT', input.model);
     const built = buildMtRequest({
       text: input.text,
@@ -128,14 +151,22 @@ export class HypaToolExecutor {
     const body = { ...built.body, ...routed(choice) } as DeveloperMtDto;
     delete (body as Partial<DeveloperMtDto>).max_tokens;
     const payload = await withToolRequest(caller, async (req) =>
-      lastValueFrom((await this.translateApi.translateText(body, req)) as Observable<{ data: unknown }>),
+      lastValueFrom(
+        (await this.translateApi.translateText(body, req)) as Observable<{
+          data: unknown;
+        }>,
+      ),
     );
     const text = typeof payload.data === 'string' ? payload.data : JSON.stringify(payload.data ?? '');
     const parsed = parseJson<ProviderResult>(text);
     const mapped = mapMtResponse(text, { sourceLang: input.sourceLang }, built.translationId);
     const usage = parsed?.usage ?? this.estimateUsage(body.text, mapped.translation);
     const ran = await this.report(caller, 'MT', { ...parsed, usage }, body);
-    return { translation: mapped.translation, language: mapped.language, ...ran };
+    return {
+      translation: mapped.translation,
+      language: mapped.language,
+      ...ran,
+    };
   }
 
   private async speak(caller: ToolCaller, input: Parameters<HypaExecutor['speak']>[0]) {
@@ -146,9 +177,12 @@ export class HypaToolExecutor {
       input.voice ??
       (target.provider === 'auto'
         ? undefined
-        : (this.defaultVoice(target.provider, target.model, input.language) ??
-          (choice ? undefined : built.voice)));
-    const body = { ...target, language: input.language, voice } as DeveloperTtsDto;
+        : (this.defaultVoice(target.provider, target.model, input.language) ?? (choice ? undefined : built.voice)));
+    const body = {
+      ...target,
+      language: input.language,
+      voice,
+    } as DeveloperTtsDto;
     const result = (await withToolRequest(caller, (req) => this.translateApi.generateTts(body, req))) as ProviderResult;
     const ran = await this.report(caller, 'TTS', result, body, body.text.length);
     const audioBase64 = result.response?.audio_b64 ?? '';
@@ -165,34 +199,35 @@ export class HypaToolExecutor {
     };
   }
 
-  private async transcribe(
-    caller: ToolCaller,
-    input: Parameters<HypaExecutor['transcribe']>[0],
-  ) {
+  private async transcribe(caller: ToolCaller, input: Parameters<HypaExecutor['transcribe']>[0]) {
     const choice = resolveToolModel('ASR', input.model, caller.asr);
-    const built = buildSttRequest({ audioBase64: input.audio, sourceLang: input.sourceLang });
+    const built = buildSttRequest({
+      audioBase64: input.audio,
+      sourceLang: input.sourceLang,
+    });
     const body = {
       ...built,
       ...routed(choice),
       audio_type: input.audioType === 'url' ? 'url' : built.audio_type,
     } as DeveloperSpeechToTextDto;
-    const result = (await withToolRequest(caller, (req) => this.translateApi.speechToText(body, req))) as ProviderResult;
+    const result = (await withToolRequest(caller, (req) =>
+      this.translateApi.speechToText(body, req),
+    )) as ProviderResult;
     const ran = await this.report(caller, 'ASR', result, body);
     return { transcript: unwrapSttResponse(result as never), ...ran };
   }
 
-  private async readImage(
-    caller: ToolCaller,
-    input: Parameters<HypaExecutor['readImage']>[0],
-  ) {
+  private async readImage(caller: ToolCaller, input: Parameters<HypaExecutor['readImage']>[0]) {
     if (!this.clients) throw new Error('No model transport');
     const requested = input.model?.includes('/') ? input.model.split('/') : undefined;
-    const target = requested && modelAcceptsImages(requested[0], requested[1])
-      ? { provider: requested[0], model: requested[1] }
-      : OCR_MODEL;
-    const image = input.imageType === 'url' || input.image.startsWith('data:')
-      ? input.image
-      : `data:image/jpeg;base64,${input.image}`;
+    const target =
+      requested && modelAcceptsImages(requested[0], requested[1])
+        ? { provider: requested[0], model: requested[1] }
+        : OCR_MODEL;
+    const image =
+      input.imageType === 'url' || input.image.startsWith('data:')
+        ? input.image
+        : `data:image/jpeg;base64,${input.image}`;
     const step = await completeAgentTurn(this.clients, {
       ...target,
       messages: [{ role: 'user', content: OCR_PROMPT, images: [image] }],
@@ -205,10 +240,17 @@ export class HypaToolExecutor {
 
   private async lookUp(caller: ToolCaller, input: Parameters<HypaExecutor['lookUp']>[0]) {
     const result = await withToolRequest(caller, (req) =>
-      this.dictionary.search({ word: input.word, language: input.language } as never, { id: caller.userId } as never, req),
+      this.dictionary.search(
+        { word: input.word, language: input.language } as never,
+        { id: caller.userId } as never,
+        req,
+      ),
     );
     await caller.onStep?.({ cost: 0, provider: 'hypaai' });
-    return { result: (result ?? {}) as Record<string, unknown>, provider: 'hypaai' };
+    return {
+      result: (result ?? {}) as Record<string, unknown>,
+      provider: 'hypaai',
+    };
   }
 
   private async report(
@@ -228,11 +270,19 @@ export class HypaToolExecutor {
   private estimateUsage(input: string, output: string): AiUsage {
     const prompt = this.billing.getTextNumberOfTokens(input);
     const completion = this.billing.getTextNumberOfTokens(output);
-    return { prompt_tokens: prompt, completion_tokens: completion, total_tokens: prompt + completion };
+    return {
+      prompt_tokens: prompt,
+      completion_tokens: completion,
+      total_tokens: prompt + completion,
+    };
   }
 
   private defaultVoice(provider: string, model: string | undefined, language: string) {
-    const modelData = this.billing.getModelInfo({ provider: provider as 'openai', model: model ?? '', type: 'TTS' });
+    const modelData = this.billing.getModelInfo({
+      provider: provider as 'openai',
+      model: model ?? '',
+      type: 'TTS',
+    });
     const voices = (modelData?.voices ?? {}) as Record<string, string[]>;
     return voices[language.toLowerCase()]?.[0];
   }
@@ -245,15 +295,25 @@ export class HypaToolExecutor {
     characterCount?: number,
   ) {
     if (!model) return 0;
-    const modelData = this.billing.getModelInfo({ provider: provider as 'openai', model, type });
+    const modelData = this.billing.getModelInfo({
+      provider: provider as 'openai',
+      model,
+      type,
+    });
     if (!modelData?.rates) return 0;
     try {
       if (modelData.charge_type === 'character_count') {
         return this.billing.calculateCost({
-          usage: usage ?? { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 },
+          usage: usage ?? {
+            prompt_tokens: 0,
+            completion_tokens: 0,
+            total_tokens: 0,
+          },
           rates: modelData.rates,
           chargeType: 'character_count',
-          additionalData: { characterCount: usage?.character_count ?? characterCount ?? 0 },
+          additionalData: {
+            characterCount: usage?.character_count ?? characterCount ?? 0,
+          },
         });
       }
       if (!usage) return 0;
@@ -275,9 +335,18 @@ async function withToolRequest<T>(caller: ToolCaller, run: (req: Request) => Pro
   const res = Object.assign(new EventEmitter(), { writableEnded: false });
   const onAbort = () => res.emit('close');
   caller.signal?.addEventListener('abort', onAbort, { once: true });
-  const req = { userId: caller.userId, apiKeyId: caller.apiKeyId, headers: {}, res, signal: caller.signal } as unknown as Request;
-  try { return await run(req); }
-  finally { caller.signal?.removeEventListener('abort', onAbort); }
+  const req = {
+    userId: caller.userId,
+    apiKeyId: caller.apiKeyId,
+    headers: {},
+    res,
+    signal: caller.signal,
+  } as unknown as Request;
+  try {
+    return await run(req);
+  } finally {
+    caller.signal?.removeEventListener('abort', onAbort);
+  }
 }
 
 function parseJson<T>(text: string): T | null {

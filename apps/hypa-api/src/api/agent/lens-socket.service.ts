@@ -13,6 +13,7 @@ import { WebSocket, WebSocketServer } from 'ws';
 import { AuthGuard } from '../auth/auth.guard';
 import { AgentService } from './agent.service';
 import { cleanLensTranslation } from './lens-translation';
+import { HypaToolExecutor } from './tool-executor';
 
 export const LENS_SOCKET_PATH = '/v2/agent/lens';
 
@@ -30,25 +31,39 @@ export const LENS_INSTRUCTION = [
 ].join(' ');
 
 type Caller = { user?: { id?: string }; userId?: string };
-type Job = { id: string; text: string; target: string; provider: string; model: string };
+type AgentMode = { type: 'agent'; provider: string; model: string };
+type MtMode = { type: 'mt'; provider: string; model: string };
+type Job = {
+  id: string;
+  text: string;
+  target: string;
+  mode: AgentMode | MtMode;
+};
+type Mode =
+  | { type: 'agent' | 'mt'; provider: string; model: string }
+  // Legacy clients sent the agent configuration directly, or "MT" without a model.
+  | { provider: string; model: string }
+  | 'MT';
 type Inbound =
-  | { type: 'translate'; id: string; text: string; target: string; provider?: string; model?: string }
-  | { type: 'cancel'; id: string };
+  { type: 'translate'; id: string; text: string; target: string; mode?: Mode } | { type: 'cancel'; id: string };
 
-export const isLensSocketRequest = (req: IncomingMessage) =>
-  (req.url ?? '').split('?')[0] === LENS_SOCKET_PATH;
+export const isLensSocketRequest = (req: IncomingMessage) => (req.url ?? '').split('?')[0] === LENS_SOCKET_PATH;
 
 @Injectable()
 export class LensSocketService implements OnApplicationBootstrap, OnApplicationShutdown {
   private readonly logger = new Logger(LensSocketService.name);
-  private readonly wss = new WebSocketServer({ noServer: true, maxPayload: 16 * 1024 });
+  private readonly wss = new WebSocketServer({
+    noServer: true,
+    maxPayload: 16 * 1024,
+  });
   private server?: Server;
 
   constructor(
     private readonly adapterHost: HttpAdapterHost,
     private readonly guard: AuthGuard,
     private readonly agent: AgentService,
-  ) {}
+    private readonly tools: HypaToolExecutor,
+  ) { }
 
   onApplicationBootstrap() {
     this.server = this.adapterHost.httpAdapter?.getHttpServer() as Server | undefined;
@@ -78,7 +93,9 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
 
   private async authenticate(req: IncomingMessage): Promise<Caller> {
     const request = req as IncomingMessage & Caller;
-    const context = { switchToHttp: () => ({ getRequest: () => request }) } as ExecutionContext;
+    const context = {
+      switchToHttp: () => ({ getRequest: () => request }),
+    } as ExecutionContext;
     if (!(await this.guard.canActivate(context))) throw new Error('Unauthorized');
     return { user: request.user, userId: request.userId };
   }
@@ -139,9 +156,25 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
         send({ type: 'error', id: message.id, message: 'Too many lines' });
         return;
       }
-      const provider = typeof message.provider === 'string' && message.provider.trim() ? message.provider.trim() : DEFAULT_PROVIDER;
-      const model = typeof message.model === 'string' && message.model.trim() ? message.model.trim() : DEFAULT_MODEL;
-      queue.push({ id: message.id, text, target, provider, model });
+      const requested = message.mode;
+      const isMt =
+        requested === 'MT' ||
+        (typeof requested !== 'string' && requested !== undefined && 'type' in requested && requested.type === 'mt');
+      const provider =
+        typeof requested !== 'string' && typeof requested?.provider === 'string' && requested.provider.trim()
+          ? requested.provider.trim()
+          : DEFAULT_PROVIDER;
+      const model =
+        typeof requested !== 'string' && typeof requested?.model === 'string' && requested.model.trim()
+          ? requested.model.trim()
+          : DEFAULT_MODEL;
+
+      queue.push({
+        id: message.id,
+        text,
+        target,
+        mode: isMt ? { type: 'mt', provider, model } : { type: 'agent', provider, model },
+      });
       next();
     });
 
@@ -156,13 +189,28 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
   /** Runs the line through the same agent pipeline as POST /v2/agent, without saving a chat. */
   private async run(job: Job, caller: Caller, signal: AbortSignal): Promise<string> {
     signal.throwIfAborted();
+    if (job.mode.type === 'mt') {
+      const result = await this.tools.translateForCaller(
+        { userId: caller.user?.id ?? caller.userId, signal },
+        {
+          text: job.text,
+          sourceLang: 'auto',
+          targetLang: job.target,
+          provider: job.mode.provider,
+          model: job.mode.model,
+        },
+      );
+      const text = cleanLensTranslation(result.translation, job.text);
+      if (!text) throw new Error('No translation returned');
+      return text;
+    }
     const run = await this.agent.open({
       requestId: randomUUID(),
       userId: caller.user?.id ?? caller.userId,
       ephemeral: true,
       input: `Translate into ${job.target}:\n${job.text}`,
-      provider: job.provider,
-      model: job.model,
+      provider: job.mode.provider,
+      model: job.mode.model,
       surface: 'app',
       toolNames: [LENS_TOOL],
       systemInstruction: LENS_INSTRUCTION,
@@ -187,7 +235,9 @@ export class LensSocketService implements OnApplicationBootstrap, OnApplicationS
       const stop = this.agent.subscribe(run, (event) => {
         if (!event) return finish(new Error('No translation returned'));
         if (event.type === 'tool_result' && event.name === LENS_TOOL) {
-          const translation = event.ok ? (event.result as { translation?: unknown } | undefined)?.translation : undefined;
+          const translation = event.ok
+            ? (event.result as { translation?: unknown } | undefined)?.translation
+            : undefined;
           if (typeof translation === 'string' && translation.trim()) return finish(null, translation.trim());
           return finish(new Error(event.ok ? 'No translation returned' : event.error || 'Translation failed'));
         }

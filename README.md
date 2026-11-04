@@ -70,8 +70,8 @@ pnpm --version
 ## 1. Clone and install
 
 ```bash
-git clone https://github.com/hypaai/hypa.git
-cd hypa
+git clone https://github.com/hypaai/hypa-meta.git
+cd hypa-meta
 pnpm install
 ```
 

@@ -50,19 +50,20 @@ The recommended review path is:
 
 Install:
 
-- Node.js 22 or newer
-- pnpm 11.25.0
+- Node.js 22.18 or newer
+- pnpm 11.25.0 (run `corepack enable` first to get the right pnpm version; on Windows without administrator rights `corepack enable` fails with `EPERM`, so run `npm install -g pnpm@11.25.0` instead)
 - Git
 - PostgreSQL compatible with the Prisma version used by this project
 - Redis
 - Xcode and CocoaPods for iOS development
 - Android Studio, Android SDK tools, and a compatible JDK for Android development
 
-The project declares Node.js `>=22` and pnpm `11.25.0` in the root [`package.json`](./package.json).
+The project declares Node.js `>=22` and pnpm `11.25.0` in the root [`package.json`](./package.json). Use Node 22.18 or newer; older 22.x releases are not sufficient.
 
 Verify the JavaScript toolchain:
 
 ```bash
+corepack enable
 node --version
 pnpm --version
 ```
@@ -72,6 +73,7 @@ pnpm --version
 ```bash
 git clone https://github.com/hypaai/hypa-meta.git
 cd hypa-meta
+corepack enable
 pnpm install
 ```
 
@@ -214,12 +216,17 @@ REDIS_TLS=false
 
 JWT_SECRET=replace-with-a-long-random-local-secret
 ENCRYPTION_KEY=replace-with-a-local-encryption-secret
+AGENT_MEDIA_SECRET=replace-with-a-long-random-local-secret
 
 NODE_ENV=development
 BASE_URL=http://localhost:5678
 ```
 
 For Docker PostgreSQL, replace `DATABASE_URL` with the Docker connection string shown in [Option A](#option-a-docker-postgresql).
+
+> Note: `AGENT_MEDIA_SECRET` signs agent media URLs; the API code throws `AGENT_MEDIA_SECRET must be set` without it.
+
+> Note: `ENCRYPTION_KEY` is listed but never used, which is harmless. It can be left as is.
 
 ### Provider keys
 
@@ -243,6 +250,10 @@ HYPA_API_KEY=<paste-the-hypa-api-key-here>
 ```
 
 The `HYPA_API_KEY` line is intentionally a placeholder. Add the Hypa credential supplied for the contest; do not commit it.
+
+> Note: the Meta API kept crashing a lot during building and testing. This may be because the $150 in free Meta credits meant the GPUs available for this branch had to be shared by all contestants and were not enough — just speculating.
+
+> Note: keep the placeholder Google values from `.env.example` in your `.env` (e.g. `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`), even if you don't use Google sign-in — the API won't start without them.
 
 Keep Mansa disabled unless you have a valid Mansa account:
 
@@ -403,6 +414,8 @@ Use a physical device for end-to-end keyboard review, including keyboard switchi
    ```bash
    pnpm --filter @hypa/intelligence android
    ```
+
+   For a real iPhone, open `apps/hypa-intelligence-mobile/ios` in Xcode and set your own Apple development team for signing before building; the default project signing will not work on physical devices.
 
 5. Open Hypa Intelligence and complete its setup checklist.
 6. Enable **Hypa Keyboard** in the device keyboard settings:

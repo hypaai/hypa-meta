@@ -12,12 +12,14 @@ import { AgentController } from './agent.controller';
 import { AgentMediaService, FirebaseBlobStore } from './agent.media';
 import { AgentService } from './agent.service';
 import { HypaToolExecutor } from './tool-executor';
+import { McpAnonymousBudget } from './mcp-anonymous-budget';
+import { McpController } from './mcp.controller';
 import { LensSocketService } from './lens-socket.service';
 import { AuthGuard } from '../auth/auth.guard';
 
 @Module({
   imports: [DeveloperModule, DictionaryModule, AudioModule, TranslateModule],
-  controllers: [AgentController],
+  controllers: [AgentController, McpController],
   providers: [
     {
       provide: AGENT_CLIENTS,
@@ -30,6 +32,7 @@ import { AuthGuard } from '../auth/auth.guard';
     },
     AgentService,
     HypaToolExecutor,
+    McpAnonymousBudget,
     AuthGuard,
     LensSocketService,
     {

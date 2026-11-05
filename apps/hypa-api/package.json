@@ -16,6 +16,7 @@
     "@hypa/intelligence-core": "workspace:*",
     "@hypa/translate-core": "workspace:*",
     "@keyv/redis": "^5.1.6",
+    "@modelcontextprotocol/sdk": "^1.25.2",
     "@nestjs/bullmq": "^11.0.4",
     "@nestjs/cache-manager": "^3.1.0",
     "@nestjs/common": "^11.0.1",

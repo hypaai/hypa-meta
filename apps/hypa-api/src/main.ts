@@ -36,6 +36,7 @@ async function bootstrap() {
   );
 
   app.use('/v2/translate/stt', json({ limit: '15mb' }));
+  app.use('/v2/mcp', json({ limit: '15mb' }));
   app.use(json({ limit: '10mb' }));
 
   app.use((req: Request, res: Response, next: NextFunction) => {

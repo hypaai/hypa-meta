@@ -25,6 +25,8 @@ export interface McpHttpHost {
   }>;
 }
 
+const SESSION_IDLE_MS = 30 * 60_000;
+
 const sendError = (res: express.Response, code: number, message: string): void => {
   res.status(code).json({ jsonrpc: "2.0", error: { code, message }, id: null });
 };
@@ -40,6 +42,14 @@ export function createMcpHttpHost(options: {
   const { createServer, name } = options;
   const mcpPath = options.path ?? resolveMcpPath();
   const sessions = new Map<string, StreamableHTTPServerTransport>();
+  // Clients often leave without closing, so drop sessions idle for 30 minutes.
+  const idleTimers = new Map<string, NodeJS.Timeout>();
+  const touch = (sid: string, transport: StreamableHTTPServerTransport) => {
+    clearTimeout(idleTimers.get(sid));
+    const timer = setTimeout(() => void transport.close(), SESSION_IDLE_MS);
+    timer.unref();
+    idleTimers.set(sid, timer);
+  };
   const app = express();
 
   app.use(express.json({ limit: "30mb" }));
@@ -51,6 +61,7 @@ export function createMcpHttpHost(options: {
       if (sessionId) {
         const transport = sessions.get(sessionId);
         if (transport) {
+          touch(sessionId, transport);
           await transport.handleRequest(req, res, req.body);
           return;
         }
@@ -63,11 +74,15 @@ export function createMcpHttpHost(options: {
           sessionIdGenerator: () => randomUUID(),
           onsessioninitialized: (sid) => {
             sessions.set(sid, transport);
+            touch(sid, transport);
           },
         });
         transport.onclose = () => {
           const sid = transport.sessionId;
-          if (sid) sessions.delete(sid);
+          if (!sid) return;
+          sessions.delete(sid);
+          clearTimeout(idleTimers.get(sid));
+          idleTimers.delete(sid);
         };
         await server.connect(transport);
         await transport.handleRequest(req, res, req.body);

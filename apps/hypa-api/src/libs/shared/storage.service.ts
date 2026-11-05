@@ -171,4 +171,27 @@ export class StorageService implements OnModuleInit {
     const objectPath = this.getObjectPath(id, options.folder, options.ext);
     return this.getBucket().file(objectPath).createReadStream(options.range);
   }
+
+  /** Add a lifecycle rule deleting objects under `prefix` after `days`, unless it exists. */
+  async deleteAfterDays(prefix: string, days: number): Promise<void> {
+    const bucket = this.getBucket();
+    const hasRule = async () => {
+      const [metadata] = await bucket.getMetadata();
+      const rules = metadata.lifecycle?.rule ?? [];
+      return rules.some((rule) =>
+        rule.action?.type === 'Delete' &&
+        rule.condition?.age === days &&
+        rule.condition?.matchesPrefix?.includes(prefix) &&
+        // Extra conditions could prevent the promised cleanup, e.g. a suffix
+        // filter or isLive:false. Only accept the unconditional age/prefix rule.
+        Object.keys(rule.condition).every((key) => key === 'age' || key === 'matchesPrefix'),
+      );
+    };
+    if (await hasRule()) return;
+    await bucket.addLifecycleRule({
+      action: { type: 'Delete' },
+      condition: { age: days, matchesPrefix: [prefix] },
+    });
+    if (!(await hasRule())) throw new Error('Bucket cleanup rule could not be verified');
+  }
 }

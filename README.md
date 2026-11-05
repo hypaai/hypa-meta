@@ -33,6 +33,7 @@ The recommended review path is:
 - [9. Run on a physical device](#9-run-on-a-physical-device)
 - [10. Validate the keyboard](#10-validate-the-keyboard)
 - [Connect Hypa MCP to Claude Code (Desktop)](#connect-hypa-mcp-to-claude-code-desktop)
+- [Connect Hypa MCP to Muse Code](#connect-hypa-mcp-to-muse-code)
 - [Useful commands](#useful-commands)
 - [Troubleshooting](#troubleshooting)
 - [Security](#security)
@@ -481,6 +482,35 @@ You need Node.js and a Hypa API key. This connects to the hosted MCP server; no 
 On macOS, use `"command": "npx"` and remove `"/c", "npx"` from `args`.
 
 Keep your API key private and do not commit the configuration file.
+
+## Connect Hypa MCP to Muse Code
+
+You need Muse Code 1.3.0 or newer and a Hypa API key. Muse Code connects to the hosted MCP server directly, so Node.js and a local API are not required.
+
+1. Open your Muse Code settings file: `~/.config/muse/settings.json` (or `$XDG_CONFIG_HOME/muse/settings.json` when `XDG_CONFIG_HOME` is set). Create it if it does not exist.
+2. Add the configuration below, replacing `YOUR_HYPA_API_KEY` with your key. Keep existing settings; if `mcpServers` already exists, add `hypa` inside it. `schema_version` must be `1`, or Muse Code will not start.
+
+   ```json
+   {
+     "schema_version": 1,
+     "mcpServers": {
+       "hypa": {
+         "type": "streamable-http",
+         "url": "https://api.hypaintelligence.com/v2/mcp",
+         "headers": { "x-api-key": "YOUR_HYPA_API_KEY" }
+       }
+     }
+   }
+   ```
+
+   Write the key itself in `headers`. Muse Code does not expand `${VAR}` in header values, so `${HYPA_API_KEY}` would be sent as plain text.
+
+3. Start a new `muse` session; a running session does not reload settings. If asked, trust the workspace (or start with `muse --trust-workspace`).
+4. Run `/mcp` and check that **hypa** is listed with its tools and no `ERROR` line. Then ask, for example, "Translate 'good morning' into Yoruba and read it aloud."
+
+To use a local API instead, set `url` to `http://localhost:5678/v2/mcp`.
+
+The settings file is in your home folder, not this repository. Keep your API key private and never copy that file into the repo.
 
 ## Useful commands
 

@@ -17,6 +17,37 @@ export function toolModelChoices(capability: ModelCapability): string[] {
     .flatMap(([provider, models]) => models.map((model) => `${provider}/${model.name}`));
 }
 
+/**
+ * A tool that failed after some of its work finished. `stage` names the step
+ * that failed and `partialResult` keeps what the earlier steps produced, so the
+ * caller can reuse it instead of paying for it again.
+ */
+export class ToolFailure extends Error {
+  readonly stage: string;
+  readonly partialResult?: Record<string, unknown>;
+  readonly code?: string;
+  constructor(
+    message: string,
+    stage: string,
+    partialResult?: Record<string, unknown>,
+    options?: { cause?: unknown; code?: string },
+  ) {
+    super(message, options);
+    this.name = "ToolFailure";
+    this.stage = stage;
+    this.partialResult = partialResult;
+    this.code = options?.code;
+  }
+}
+
+/** What a failed tool reports, the same for the agent and for /v2/mcp. */
+export function toolFailureBody(error: unknown): { error: string; code?: string; stage?: string; partialResult?: Record<string, unknown> } {
+  const message = error instanceof Error && error.message ? error.message : "Tool failed";
+  return error instanceof ToolFailure
+    ? { error: message, ...(error.code ? { code: error.code } : {}), stage: error.stage, ...(error.partialResult ? { partialResult: error.partialResult } : {}) }
+    : { error: message };
+}
+
 const MODEL_HELP =
   'Optional. Omit or "auto" for the best-scoring model for the language (with fallback), "default" for the catalog default, or a "provider/model" id from list_models.';
 
@@ -95,7 +126,10 @@ const attachedAudio = z.coerce
   .describe("In a chat only: the number of the voice note or audio file the user attached, in the order given. Do not pass `audio` then.");
 
 const audioRequired = () =>
-  new Error("No audio was given. Pass `audio`, or set attachedAudio to the number of an audio file attached in a chat.");
+  new ToolFailure(
+    "No audio was given. Pass `audio`, or set attachedAudio to the number of an audio file attached in a chat.",
+    "input",
+  );
 
 const image = z
   .string()
@@ -139,6 +173,12 @@ export interface HypaTool {
   inputSchema: z.AnyZodObject;
   outputSchema: z.AnyZodObject;
   run: (executor: HypaExecutor, args: Record<string, any>) => Promise<object>;
+  /**
+   * Only the chat attaches files, so these tools take an `attached…` number there.
+   * `hint` is added to the description the chat's model reads. `require` lists the inputs
+   * that other clients (MCP) must give, since the chat may leave them out.
+   */
+  chat?: { hint: string; require: readonly string[] };
 }
 
 const DOCUMENT_MAX = 20_000;
@@ -280,9 +320,11 @@ export const HYPA_TOOLS: HypaTool[] = [
   {
     name: "speech_to_text",
     title: "Transcribe speech",
-    description:
-      "Transcribe a voice recording into text. " +
-      "To hear audio the user attached to the chat, set attachedAudio to its number (1 for the first) instead of passing `audio`; for several files, call this once per file.",
+    description: "Transcribe a voice recording into text.",
+    chat: {
+      hint: "To hear audio the user attached to the chat, set attachedAudio to its number (1 for the first) instead of passing `audio`; for several files, call this once per file.",
+      require: ["audio"],
+    },
     inputSchema: z.object({
       audio: audio.optional(),
       audioType: mediaType("audio"),
@@ -304,9 +346,11 @@ export const HYPA_TOOLS: HypaTool[] = [
   {
     name: "process_voice_message",
     title: "Process a voice message",
-    description:
-      "Transcribe a voice message, and translate the transcript when targetLang is given. " +
-      "To use audio the user attached to the chat, set attachedAudio to its number (1 for the first) instead of passing `audio`.",
+    description: "Transcribe a voice message, and translate the transcript when targetLang is given.",
+    chat: {
+      hint: "To use audio the user attached to the chat, set attachedAudio to its number (1 for the first) instead of passing `audio`.",
+      require: ["audio"],
+    },
     inputSchema: z.object({
       audio: audio.optional(),
       audioType: mediaType("audio"),
@@ -539,6 +583,7 @@ export interface FunctionTool {
   };
 }
 
+/** The same tools as OpenAI-style function tools, for the agent's models. */
 export function toFunctionTools(tools: HypaTool[] = HYPA_TOOLS): FunctionTool[] {
   return tools.map((tool) => {
     const { $schema: _schema, ...parameters } = zodToJsonSchema(tool.inputSchema, {
@@ -546,7 +591,21 @@ export function toFunctionTools(tools: HypaTool[] = HYPA_TOOLS): FunctionTool[] 
     }) as Record<string, unknown>;
     return {
       type: "function",
-      function: { name: tool.name, description: tool.description, parameters },
+      function: {
+        name: tool.name,
+        description: tool.chat ? `${tool.description} ${tool.chat.hint}` : tool.description,
+        parameters,
+      },
     };
   });
+}
+
+/** What /v2/mcp publishes: no chat-only `attached…` inputs, and the inputs the chat may skip are required again. */
+export function toMcpTool(tool: HypaTool): HypaTool {
+  const mask = (keys: readonly string[]) => Object.fromEntries(keys.map((key) => [key, true as const]));
+  const attached = Object.keys(tool.inputSchema.shape).filter((key) => key.startsWith("attached"));
+  let inputSchema = tool.inputSchema;
+  if (attached.length) inputSchema = inputSchema.omit(mask(attached));
+  if (tool.chat?.require.length) inputSchema = inputSchema.required(mask(tool.chat.require));
+  return { ...tool, inputSchema };
 }

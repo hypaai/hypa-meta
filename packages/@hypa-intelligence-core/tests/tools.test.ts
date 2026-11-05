@@ -4,6 +4,9 @@ import {
   HYPA_TOOLS,
   runHypaTool,
   toFunctionTools,
+  toMcpTool,
+  ToolFailure,
+  toolFailureBody,
   toolModelChoices,
   type HypaExecutor,
 } from "../src/tools";
@@ -218,6 +221,50 @@ describe("Hypa tools", () => {
     todaysWord = null;
     assert.deepEqual(await word(), { available: false });
     assert.deepEqual(steps.map((entry) => entry.step), ["wordOfTheDay", "wordOfTheDay"]);
+  });
+
+  it("publishes MCP tools without chat-only inputs, requiring what the chat may skip", () => {
+    for (const entry of HYPA_TOOLS) {
+      const published = toMcpTool(entry);
+      const keys = Object.keys(published.inputSchema.shape);
+      assert.equal(
+        keys.some((key) => key.startsWith("attached")),
+        false,
+        `${entry.name} keeps no attached input for MCP`,
+      );
+    }
+    // The chat's attached-number shortcut means nothing to MCP, so audio is required again.
+    assert.equal(toMcpTool(tool("speech_to_text")).inputSchema.safeParse({}).success, false);
+    assert.equal(toMcpTool(tool("speech_to_text")).inputSchema.safeParse({ audio: "AAAA" }).success, true);
+    assert.equal(toMcpTool(tool("process_voice_message")).inputSchema.safeParse({}).success, false);
+    // Image tools already require their image for every client.
+    assert.equal(toMcpTool(tool("extract_text_from_image")).inputSchema.safeParse({}).success, false);
+    assert.deepEqual(
+      Object.keys(toMcpTool(tool("translate_message")).inputSchema.shape).sort(),
+      Object.keys(tool("translate_message").inputSchema.shape).sort(),
+    );
+  });
+
+  it("keeps the chat hint in the function tools the agent's models read", () => {
+    const speech = toFunctionTools().find((fn) => fn.function.name === "speech_to_text")!;
+    assert.match(speech.function.description, /attachedAudio/);
+    assert.match(speech.function.description, /^Transcribe a voice recording into text\. To hear audio/);
+    const voice = toFunctionTools().find((fn) => fn.function.name === "process_voice_message")!;
+    assert.match(voice.function.description, /attachedAudio/);
+  });
+
+  it("reports tool failures the same way for the agent and for MCP", () => {
+    assert.deepEqual(toolFailureBody(new ToolFailure("Speech returned no audio", "speech", { translatedText: "hi" })), {
+      error: "Speech returned no audio",
+      stage: "speech",
+      partialResult: { translatedText: "hi" },
+    });
+    assert.deepEqual(toolFailureBody(new ToolFailure("No audio was given.", "input")), {
+      error: "No audio was given.",
+      stage: "input",
+    });
+    assert.deepEqual(toolFailureBody(new Error("boom")), { error: "boom" });
+    assert.deepEqual(toolFailureBody("nope"), { error: "Tool failed" });
   });
 
   it("tells an agent how to call speech from code, so it can write working code", () => {
